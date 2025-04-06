@@ -5,5 +5,5 @@ SPDX-License-Identifier: BSL-1.0
 -->
 
 <resources>
-    <string name="app_name">electricmaple_standalone_client</string>
+    <string name="app_name">Gst Webrtc Server</string>
 </resources>

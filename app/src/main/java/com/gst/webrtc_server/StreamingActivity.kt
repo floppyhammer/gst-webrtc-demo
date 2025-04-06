@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSL-1.0
 
-package com.plutovr.electricmaple.standalone_client
+package com.gst.webrtc_server
 
 import org.freedesktop.gstreamer.GStreamer
 
@@ -13,19 +13,15 @@ import android.util.Log
 
 class StreamingActivity : NativeActivity() {
     override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
+        System.loadLibrary("gst_webrtc_demo")
+        Log.i("GstWebrtcServer", "StreamingActivity: loaded gst_webrtc_demo")
 
-        System.loadLibrary("electricmaple_client")
-        Log.i("ElectricMaple", "StreamingActivity: loaded electricmaple_client")
-        System.loadLibrary("electricmaple_standalone_client")
-        Log.i("ElectricMaple", "StreamingActivity: loaded")
         super.onCreate(savedInstanceState, persistentState)
     }
 
     companion object {
         init {
-            Log.i("ElectricMaple", "StreamingActivity: In StreamingActivity static init")
-
-
+            Log.i("GstWebrtcServer", "StreamingActivity: In StreamingActivity static init")
         }
     }
 }

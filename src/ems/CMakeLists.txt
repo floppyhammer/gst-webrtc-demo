@@ -11,6 +11,7 @@ target_link_libraries(
         ems_build_defines
         ems_callbacks
         gstreamer_android
+        ${LIBSOUP_LIBRARIES}
 )
 
 target_include_directories(

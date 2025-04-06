@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: BSL-1.0
 
 add_library(gstreamer_android SHARED gstreamer_android.c)
+
 target_link_libraries(
         gstreamer_android
         PRIVATE

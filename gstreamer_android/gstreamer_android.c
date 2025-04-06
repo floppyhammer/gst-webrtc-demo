@@ -2,14 +2,13 @@
 //
 // SPDX-License-Identifier: BSL-1.0
 
-#include <gst/gst.h>
 #include <gio/gio.h>
+#include <gst/gst.h>
 
-#define GST_G_IO_MODULE_DECLARE(name) \
-extern void G_PASTE(g_io_, G_PASTE(name, _load)) (gpointer data)
+#define GST_G_IO_MODULE_DECLARE(name)                                          \
+  extern void G_PASTE(g_io_, G_PASTE(name, _load))(gpointer data)
 
-#define GST_G_IO_MODULE_LOAD(name) \
-G_PASTE(g_io_, G_PASTE(name, _load)) (NULL)
+#define GST_G_IO_MODULE_LOAD(name) G_PASTE(g_io_, G_PASTE(name, _load))(NULL)
 
 /* Declaration of static plugins */
 
@@ -33,36 +32,30 @@ GST_PLUGIN_STATIC_DECLARE(playback); // "FFMPEG "
 /* Declaration of static gio modules */
 
 /* Call this function to load GIO modules */
-static void
-gst_android_load_gio_modules (void)
-{
+static void gst_android_load_gio_modules(void) {
   GTlsBackend *backend;
   const gchar *ca_certs;
 
+  ca_certs = g_getenv("CA_CERTIFICATES");
 
-
-  ca_certs = g_getenv ("CA_CERTIFICATES");
-
-  backend = g_tls_backend_get_default ();
+  backend = g_tls_backend_get_default();
   if (backend && ca_certs) {
     GTlsDatabase *db;
     GError *error = NULL;
 
-    db = g_tls_file_database_new (ca_certs, &error);
+    db = g_tls_file_database_new(ca_certs, &error);
     if (db) {
-      g_tls_backend_set_default_database (backend, db);
-      g_object_unref (db);
+      g_tls_backend_set_default_database(backend, db);
+      g_object_unref(db);
     } else {
-      g_warning ("Failed to create a database from file: %s",
-          error ? error->message : "Unknown");
+      g_warning("Failed to create a database from file: %s",
+                error ? error->message : "Unknown");
     }
   }
 }
 
 /* This is called by gst_init() */
-void
-gst_init_static_plugins (void)
-{
+void gst_init_static_plugins(void) {
   GST_PLUGIN_STATIC_REGISTER(app);        // Definitely needed
   GST_PLUGIN_STATIC_REGISTER(autodetect); // Definitely needed
   GST_PLUGIN_STATIC_REGISTER(coreelements);
@@ -80,5 +73,5 @@ gst_init_static_plugins (void)
   GST_PLUGIN_STATIC_REGISTER(videoconvertscale);
   GST_PLUGIN_STATIC_REGISTER(overlaycomposition);
   GST_PLUGIN_STATIC_REGISTER(playback);
-  gst_android_load_gio_modules ();
+  gst_android_load_gio_modules();
 }
