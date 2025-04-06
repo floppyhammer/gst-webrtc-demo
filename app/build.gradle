@@ -1,0 +1,65 @@
+// Copyright 2023, Pluto VR, Inc.
+//
+// SPDX-License-Identifier: BSL-1.0
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    compileSdk 33
+
+    namespace 'com.gst.webrtc_server'
+    ndkVersion project.ndkVersion
+
+    defaultConfig {
+//        todo
+//        python {
+//            pip {
+//                install "nanopb"
+//            }
+//        }
+        applicationId "com.gst.webrtc_server"
+        minSdkVersion 26
+        // Version 30 breaks loader
+        targetSdkVersion 29
+        versionCode 1
+        versionName "1.0"
+
+        externalNativeBuild {
+            cmake {
+                arguments '-DANDROID_STL=c++_shared', "-DEIGEN3_INCLUDE_DIR=${project.eigenIncludeDir}", project.gstreamerCMakeArg
+
+            }
+            ndk {
+                abiFilters 'arm64-v8a'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path "../CMakeLists.txt"
+        }
+    }
+    buildFeatures {
+        prefab true
+    }
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.10.1'
+    implementation project(path: ':gstreamer_java')
+}
+

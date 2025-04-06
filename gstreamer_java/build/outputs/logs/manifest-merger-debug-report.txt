@@ -1,0 +1,25 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml:2:13-83
+INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml:2:13-83
+INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml:2:13-83
+	package
+		INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+		ADDED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml:2:13-83
+		INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+	xmlns:android
+		ADDED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml:2:23-81
+uses-sdk
+INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml reason: use-sdk injection requested
+INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+	android:targetSdkVersion
+		INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+		ADDED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+		INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+	android:minSdkVersion
+		INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+		ADDED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
+		INJECTED from /home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
