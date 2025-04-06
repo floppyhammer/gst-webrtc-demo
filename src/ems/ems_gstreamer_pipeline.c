@@ -495,13 +495,12 @@ void gst_pipeline_create(const char *appsrc_name,
     g_signal_connect(signaling_server, "sdp-answer", G_CALLBACK(webrtc_sdp_answer_cb), mgd);
     g_signal_connect(signaling_server, "candidate", G_CALLBACK(webrtc_candidate_cb), mgd);
 
-    // loop = g_main_loop_new (NULL, FALSE);
-    // g_unix_signal_add (SIGINT, sigint_handler, loop);
-
     g_print(
         "Output streams:\n"
         "\tWebRTC: http://127.0.0.1:8080\n");
 
     // Setup pipeline.
     mgd->pipeline = pipeline;
+
+    *out_gst_data = mgd;
 }
