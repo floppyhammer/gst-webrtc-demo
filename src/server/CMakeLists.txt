@@ -1,4 +1,4 @@
-add_library(gws_gst STATIC gstreamer_pipeline.c signaling_server.c callbacks.cpp)
+add_library(gws_gst STATIC gstreamer_pipeline.c signaling_server.c)
 
 target_link_libraries(
         gws_gst

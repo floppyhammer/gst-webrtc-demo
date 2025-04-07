@@ -21,7 +21,6 @@
 #include <thread>
 
 #include "common/app_log.h"
-#include "server/callbacks.h"
 #include "server/gstreamer_pipeline.h"
 
 namespace {
@@ -113,11 +112,8 @@ void android_main(struct android_app *app) {
     app->onAppCmd = onAppCmd;
 
     //////////////////////////////////////////
-    struct ems_callbacks *callbacks = NULL;
-    callbacks = ems_callbacks_create();
-
     struct MyGstData *mgd = NULL;
-    gst_pipeline_create(callbacks, &mgd);
+    gst_pipeline_create(&mgd);
 
     gst_pipeline_play(mgd);
 
@@ -128,10 +124,9 @@ void android_main(struct android_app *app) {
         }
     }
 
-    gst_pipeline_stop(mgd);
-
     ALOGI("DEBUG: Exited main loop, cleaning up.\n");
-    ems_callbacks_destroy(&callbacks);
+
+    gst_pipeline_stop(mgd);
     //////////////////////////////////////////
 
     (*app->activity->vm).DetachCurrentThread();

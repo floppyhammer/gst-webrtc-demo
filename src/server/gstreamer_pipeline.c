@@ -85,22 +85,37 @@ static void connect_webrtc_to_tee(GstElement *webrtcbin) {
     GstElement *tee;
     GstPad *srcpad;
     GstPad *sinkpad;
+    GstPad *q_srcpad;
+    GstPad *q_sinkpad;
     GstPadLinkReturn ret;
+    GstElement *queue;
 
     pipeline = GST_ELEMENT(gst_element_get_parent(webrtcbin));
     if (pipeline == NULL) return;
-    tee = gst_bin_get_by_name(GST_BIN(pipeline), WEBRTC_TEE_NAME);
 
+    tee = gst_bin_get_by_name(GST_BIN(pipeline), WEBRTC_TEE_NAME);
     srcpad = gst_element_request_pad_simple(tee, "src_%u");
+
+    queue = gst_element_factory_make("queue", "tee_to_webrtc_queue");
+    gst_bin_add(GST_BIN(pipeline), queue);
+
+    q_sinkpad = gst_element_get_static_pad(queue, "sink");
+    q_srcpad = gst_element_get_static_pad(queue, "src");
+
+    ret = gst_pad_link(srcpad, q_sinkpad);
+    g_assert(ret == GST_PAD_LINK_OK);
+
     sinkpad = gst_element_request_pad_simple(webrtcbin, "sink_0");
 
-    ret = gst_pad_link(srcpad, sinkpad);
+    ret = gst_pad_link(q_srcpad, sinkpad);
     g_assert(ret == GST_PAD_LINK_OK);
 
     gst_object_unref(srcpad);
     gst_object_unref(sinkpad);
     gst_object_unref(tee);
     gst_object_unref(pipeline);
+    gst_object_unref(q_srcpad);
+    gst_object_unref(q_sinkpad);
 }
 
 static void on_offer_created(GstPromise *promise, GstElement *webrtcbin) {
@@ -174,7 +189,7 @@ static void data_channel_message_string_cb(GstWebRTCDataChannel *datachannel, gc
 static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_id, struct MyGstData *egp) {
     ALOGD("Client connected");
 
-    GstBin *pipeline = GST_BIN(egp->pipeline);
+    GstBin *pipeline_bin = GST_BIN(egp->pipeline);
     gchar *name;
     GstElement *webrtcbin;
     GstCaps *caps;
@@ -187,7 +202,7 @@ static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_
     webrtcbin = gst_element_factory_make("webrtcbin", name);
     g_object_set(webrtcbin, "bundle-policy", GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE, NULL);
     g_object_set_data(G_OBJECT(webrtcbin), "client_id", client_id);
-    gst_bin_add(pipeline, webrtcbin);
+    gst_bin_add(pipeline_bin, webrtcbin);
 
     ret = gst_element_set_state(webrtcbin, GST_STATE_READY);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
@@ -235,7 +250,7 @@ static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_
     promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_offer_created, webrtcbin, NULL);
     g_signal_emit_by_name(webrtcbin, "create-offer", NULL, promise);
 
-    GST_DEBUG_BIN_TO_DOT_FILE(pipeline, GST_DEBUG_GRAPH_SHOW_ALL, "rtcbin");
+    GST_DEBUG_BIN_TO_DOT_FILE(pipeline_bin, GST_DEBUG_GRAPH_SHOW_ALL, "rtcbin");
 
     g_free(name);
 }
@@ -448,7 +463,7 @@ void gstAndroidLog(GstDebugCategory *category,
 
 #define U_TYPED_CALLOC(TYPE) ((TYPE *)calloc(1, sizeof(TYPE)))
 
-void gst_pipeline_create(struct ems_callbacks *callbacks_collection, struct MyGstData **out_gst_data) {
+void gst_pipeline_create(struct MyGstData **out_gst_data) {
     gchar *pipeline_str;
     GstElement *pipeline;
     GError *error = NULL;
@@ -457,27 +472,23 @@ void gst_pipeline_create(struct ems_callbacks *callbacks_collection, struct MyGs
     signaling_server = signaling_server_new();
 
     pipeline_str = g_strdup_printf(
-        //        "videotestsrc ! "                                                    //
-        //        "queue ! "                                                           //
-        //        "videoconvert ! "                                                    //
-        //        "video/x-raw,format=NV12 ! "                                         //
-        //        "queue ! "                                                           //
-        //        "x264enc tune=zerolatency ! "                                        //
-        //        "video/x-h264,profile=baseline ! "                                   //
-        //        "queue ! "                                                           //
-        //        "h264parse ! "                                                       //
-        "videotestsrc ! videoscale ! video/x-raw,width=640,height=360,framerate=15/1 ! videoconvert ! queue "
-        "max-size-buffers=1 ! x264enc bitrate=600 speed-preset=ultrafast tune=zerolatency key-int-max=15 ! "
-        "video/x-h264,profile=constrained-baseline ! queue max-size-time=100000000 ! h264parse ! "
-        "rtph264pay config-interval=1 aggregate-mode=zero-latency ssrc=2 ! " //
-        "application/x-rtp,payload=96 ! "                                    //
+        "videotestsrc ! "                        //
+        "queue ! "                               //
+        "videoconvert ! "                        //
+        "video/x-raw,format=NV12 ! "             //
+        "queue ! "                               //
+        "x264enc tune=zerolatency ! "            //
+        "video/x-h264,profile=baseline ! "       //
+        "queue ! "                               //
+        "h264parse ! "                           //
+        "rtph264pay config-interval=1 ssrc=1 ! " //
+        "application/x-rtp,payload=96 ! "        //
         "tee name=%s allow-not-linked=true",
         WEBRTC_TEE_NAME);
 
     // No webrtc bin yet until later!
 
     struct MyGstData *mgd = U_TYPED_CALLOC(struct MyGstData);
-    mgd->callbacks = callbacks_collection;
 
     gst_init(NULL, NULL);
 
