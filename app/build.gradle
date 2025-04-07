@@ -1,7 +1,3 @@
-// Copyright 2023, Pluto VR, Inc.
-//
-// SPDX-License-Identifier: BSL-1.0
-
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
@@ -14,12 +10,6 @@ android {
     ndkVersion project.ndkVersion
 
     defaultConfig {
-//        todo
-//        python {
-//            pip {
-//                install "nanopb"
-//            }
-//        }
         applicationId "com.gst.webrtc_server"
         minSdkVersion 26
         // Version 30 breaks loader

@@ -1,10 +1,11 @@
-#include "ems_gstreamer_pipeline.h"
+#include "gstreamer_pipeline.h"
 
 #include <glib-unix.h>
 #include <gst/gst.h>
 #include <gst/gststructure.h>
 
-#include "ems_signaling_server.h"
+#include "../common/app_log.h"
+#include "signaling_server.h"
 
 #define GST_USE_UNSTABLE_API
 
@@ -19,7 +20,7 @@
 
 #define WEBRTC_TEE_NAME "webrtctee"
 
-EmsSignalingServer *signaling_server;
+SignalingServer *signaling_server;
 
 struct MyGstData {
     GstElement *pipeline;
@@ -68,7 +69,7 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
     return TRUE;
 }
 
-static GstElement *get_webrtcbin_for_client(GstBin *pipeline, EmsClientId client_id) {
+static GstElement *get_webrtcbin_for_client(GstBin *pipeline, ClientId client_id) {
     gchar *name;
     GstElement *webrtcbin;
 
@@ -112,7 +113,7 @@ static void on_offer_created(GstPromise *promise, GstElement *webrtcbin) {
     g_signal_emit_by_name(webrtcbin, "set-local-description", offer, NULL);
 
     sdp = gst_sdp_message_as_text(offer->sdp);
-    ems_signaling_server_send_sdp_offer(signaling_server, g_object_get_data(G_OBJECT(webrtcbin), "client_id"), sdp);
+    signaling_server_send_sdp_offer(signaling_server, g_object_get_data(G_OBJECT(webrtcbin), "client_id"), sdp);
     g_free(sdp);
 
     gst_webrtc_session_description_free(offer);
@@ -120,21 +121,19 @@ static void on_offer_created(GstPromise *promise, GstElement *webrtcbin) {
     connect_webrtc_to_tee(webrtcbin);
 }
 
-static void webrtc_on_data_channel_cb(GstElement *webrtcbin,
-                                      GObject *data_channel,
-                                      struct ems_gstreamer_pipeline *egp) {
-    g_info("webrtc_on_data_channel_cb called");
+static void webrtc_on_data_channel_cb(GstElement *webrtcbin, GObject *data_channel, struct gstreamer_pipeline *egp) {
+    ALOGD(__func__);
 }
 
 static void webrtc_on_ice_candidate_cb(GstElement *webrtcbin, guint mlineindex, gchar *candidate) {
-    ems_signaling_server_send_candidate(signaling_server,
-                                        g_object_get_data(G_OBJECT(webrtcbin), "client_id"),
-                                        mlineindex,
-                                        candidate);
+    signaling_server_send_candidate(signaling_server,
+                                    g_object_get_data(G_OBJECT(webrtcbin), "client_id"),
+                                    mlineindex,
+                                    candidate);
 }
 
-static void data_channel_error_cb(GstWebRTCDataChannel *datachannel, struct ems_gstreamer_pipeline *egp) {
-    g_error("error");
+static void data_channel_error_cb(GstWebRTCDataChannel *datachannel, struct gstreamer_pipeline *egp) {
+    ALOGE(__func__);
 }
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
@@ -150,13 +149,13 @@ gboolean datachannel_send_message(GstWebRTCDataChannel *datachannel) {
 }
 
 static void data_channel_open_cb(GstWebRTCDataChannel *datachannel, struct MyGstData *mgd) {
-    g_info("data channel opened");
+    ALOGD("Data channel opened");
 
     mgd->timeout_src_id = g_timeout_add_seconds(3, G_SOURCE_FUNC(datachannel_send_message), datachannel);
 }
 
 static void data_channel_close_cb(GstWebRTCDataChannel *datachannel, struct MyGstData *mgd) {
-    g_info("data channel closed");
+    ALOGD("Data channel closed");
 
     g_clear_handle_id(&mgd->timeout_src_id, g_source_remove);
     g_clear_object(&mgd->data_channel);
@@ -164,16 +163,16 @@ static void data_channel_close_cb(GstWebRTCDataChannel *datachannel, struct MyGs
 
 static void data_channel_message_data_cb(GstWebRTCDataChannel *datachannel,
                                          GBytes *data,
-                                         struct ems_gstreamer_pipeline *egp) {
-    g_info("data_channel_message_data_cb");
+                                         struct gstreamer_pipeline *egp) {
+    ALOGD("data_channel_message_data_cb");
 }
 
 static void data_channel_message_string_cb(GstWebRTCDataChannel *datachannel, gchar *str, struct MyGstData *egp) {
-    g_info("Received data channel message: %s\n", str);
+    ALOGD("Received data channel message: %s\n", str);
 }
 
-static void webrtc_client_connected_cb(EmsSignalingServer *server, EmsClientId client_id, struct MyGstData *egp) {
-    g_debug("Client connected");
+static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_id, struct MyGstData *egp) {
+    ALOGD("Client connected");
 
     GstBin *pipeline = GST_BIN(egp->pipeline);
     gchar *name;
@@ -202,10 +201,10 @@ static void webrtc_client_connected_cb(EmsSignalingServer *server, EmsClientId c
     gst_clear_structure(&data_channel_options);
 
     if (!egp->data_channel) {
-        g_error("Couldn't make datachannel!");
+        ALOGE("Couldn't make datachannel!");
         assert(false);
     } else {
-        g_info("Successfully created datachannel!");
+        ALOGD("Successfully created datachannel!");
 
         g_signal_connect(egp->data_channel, "on-open", G_CALLBACK(data_channel_open_cb), egp);
         g_signal_connect(egp->data_channel, "on-close", G_CALLBACK(data_channel_close_cb), egp);
@@ -242,10 +241,7 @@ static void webrtc_client_connected_cb(EmsSignalingServer *server, EmsClientId c
     g_free(name);
 }
 
-static void webrtc_sdp_answer_cb(EmsSignalingServer *server,
-                                 EmsClientId client_id,
-                                 const gchar *sdp,
-                                 struct MyGstData *egp) {
+static void webrtc_sdp_answer_cb(SignalingServer *server, ClientId client_id, const gchar *sdp, struct MyGstData *egp) {
     GstBin *pipeline = GST_BIN(egp->pipeline);
     GstSDPMessage *sdp_msg = NULL;
     GstWebRTCSessionDescription *desc = NULL;
@@ -280,9 +276,9 @@ out:
     g_clear_pointer(&desc, gst_webrtc_session_description_free);
 }
 
-static void webrtc_candidate_cb(EmsSignalingServer *server,
-                                EmsClientId client_id,
-                                guint mlineindex,
+static void webrtc_candidate_cb(SignalingServer *server,
+                                ClientId client_id,
+                                guint line_index,
                                 const gchar *candidate,
                                 struct MyGstData *mgd) {
     GstBin *pipeline = GST_BIN(mgd->pipeline);
@@ -292,7 +288,7 @@ static void webrtc_candidate_cb(EmsSignalingServer *server,
 
         webrtcbin = get_webrtcbin_for_client(pipeline, client_id);
         if (webrtcbin) {
-            g_signal_emit_by_name(webrtcbin, "add-ice-candidate", mlineindex, candidate);
+            g_signal_emit_by_name(webrtcbin, "add-ice-candidate", line_index, candidate);
             gst_object_unref(webrtcbin);
         }
     }
@@ -309,7 +305,7 @@ static GstPadProbeReturn remove_webrtcbin_probe_cb(GstPad *pad, GstPadProbeInfo 
     return GST_PAD_PROBE_REMOVE;
 }
 
-static void webrtc_client_disconnected_cb(EmsSignalingServer *server, EmsClientId client_id, struct MyGstData *mgd) {
+static void webrtc_client_disconnected_cb(SignalingServer *server, ClientId client_id, struct MyGstData *mgd) {
     GstBin *pipeline = GST_BIN(mgd->pipeline);
     GstElement *webrtcbin;
 
@@ -396,7 +392,7 @@ void *loop_thread(void *data) {
  */
 
 void gst_pipeline_play(struct MyGstData *mgd) {
-    g_info("Starting pipeline");
+    ALOGD("Starting pipeline");
     main_loop = g_main_loop_new(NULL, FALSE);
 
     GstStateChangeReturn ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
@@ -409,14 +405,14 @@ void gst_pipeline_play(struct MyGstData *mgd) {
 }
 
 void gst_pipeline_stop(struct MyGstData *mgd) {
-    g_info("Stopping pipeline");
+    ALOGD("Stopping pipeline");
 
     // Settle the pipeline.
-    g_info("Sending EOS");
+    ALOGD("Sending EOS");
     gst_element_send_event(mgd->pipeline, gst_event_new_eos());
 
     // Wait for EOS message on the pipeline bus.
-    g_info("Waiting for EOS");
+    ALOGD("Waiting for EOS");
     GstMessage *msg = NULL;
     msg = gst_bus_timed_pop_filtered(GST_ELEMENT_BUS(mgd->pipeline),
                                      GST_CLOCK_TIME_NONE,
@@ -425,7 +421,7 @@ void gst_pipeline_stop(struct MyGstData *mgd) {
     (void)msg;
 
     // Completely stop the pipeline.
-    g_info("Setting to NULL");
+    ALOGD("Setting to NULL");
     gst_element_set_state(mgd->pipeline, GST_STATE_NULL);
 }
 
@@ -440,7 +436,12 @@ void gstAndroidLog(GstDebugCategory *category,
                    GstDebugMessage *message,
                    gpointer data) {
     if (level <= gst_debug_category_get_threshold(category)) {
-        __android_log_print(ANDROID_LOG_DEBUG, "%s, %s: %s", file, function, gst_debug_message_get(message));
+        if (level == GST_LEVEL_ERROR) {
+            __android_log_print(ANDROID_LOG_ERROR, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
+        } else {
+            //            __android_log_print(ANDROID_LOG_DEBUG, "GST", "%s, %s: %s", file, function,
+            //            gst_debug_message_get(message));
+        }
     }
 }
 
@@ -452,7 +453,7 @@ void gst_pipeline_create(struct ems_callbacks *callbacks_collection, struct MyGs
     GError *error = NULL;
     GstBus *bus;
 
-    signaling_server = ems_signaling_server_new();
+    signaling_server = signaling_server_new();
 
     pipeline_str = g_strdup_printf(
         "videotestsrc ! "                                                    //
@@ -481,9 +482,9 @@ void gst_pipeline_create(struct ems_callbacks *callbacks_collection, struct MyGs
 #ifdef __ANDROID__
         gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
 #endif
-        gst_debug_set_default_threshold(GST_LEVEL_WARNING);
-        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_INFO);
-        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_INFO);
+        gst_debug_set_default_threshold(GST_LEVEL_ERROR);
+        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_WARNING);
+        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_WARNING);
     }
 
     pipeline = gst_parse_launch(pipeline_str, &error);

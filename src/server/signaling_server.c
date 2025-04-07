@@ -11,7 +11,7 @@
  * @ingroup aux_util
  */
 
-#include "ems_signaling_server.h"
+#include "signaling_server.h"
 
 #include <glib/gstdio.h>
 #include <json-glib/json-glib.h>
@@ -23,7 +23,9 @@
     #include <libsoup/soup-server-message.h>
 #endif
 
-struct _EmsSignalingServer {
+#include "../common/app_log.h"
+
+struct _SignalingServer {
     GObject parent;
 
     SoupServer *soup_server;
@@ -31,7 +33,7 @@ struct _EmsSignalingServer {
     GSList *websocket_connections;
 };
 
-G_DEFINE_TYPE(EmsSignalingServer, ems_signaling_server, G_TYPE_OBJECT)
+G_DEFINE_TYPE(SignalingServer, signaling_server, G_TYPE_OBJECT)
 
 enum {
     SIGNAL_WS_CLIENT_CONNECTED,
@@ -43,8 +45,8 @@ enum {
 
 static guint signals[N_SIGNALS];
 
-EmsSignalingServer *ems_signaling_server_new() {
-    return EMS_SIGNALING_SERVER(g_object_new(EMS_TYPE_SIGNALING_SERVER, NULL));
+SignalingServer *signaling_server_new() {
+    return GWD_SIGNALING_SERVER(g_object_new(TYPE_SIGNALING_SERVER, NULL));
 }
 
 #if !SOUP_CHECK_VERSION(3, 0, 0)
@@ -67,14 +69,14 @@ static void http_cb(SoupServer *server,     //
                     gpointer user_data) {
     // We're not serving any HTTP traffic - if somebody (erroneously) submits an HTTP request, tell them to get
     // lost.
-    g_error("Got an erroneous HTTP request from %s", soup_server_message_get_remote_host(msg));
+    ALOGE("Got an erroneous HTTP request from %s", soup_server_message_get_remote_host(msg));
     soup_server_message_set_status(msg, SOUP_STATUS_NOT_FOUND, NULL);
 }
 #endif
 
-static void ems_signaling_server_handle_message(EmsSignalingServer *server,
-                                                SoupWebsocketConnection *connection,
-                                                GBytes *message) {
+static void signaling_server_handle_message(SignalingServer *server,
+                                            SoupWebsocketConnection *connection,
+                                            GBytes *message) {
     gsize length = 0;
     const gchar *msg_data = g_bytes_get_data(message, &length);
     JsonParser *parser = json_parser_new();
@@ -92,7 +94,7 @@ static void ems_signaling_server_handle_message(EmsSignalingServer *server,
         msg_type = json_object_get_string_member(msg, "msg");
         if (g_str_equal(msg_type, "answer")) {
             const gchar *answer_sdp = json_object_get_string_member(msg, "sdp");
-            g_debug("Received answer:\n %s", answer_sdp);
+            ALOGD("Received answer:\n %s", answer_sdp);
 
             g_signal_emit(server, signals[SIGNAL_SDP_ANSWER], 0, connection, answer_sdp);
         } else if (g_str_equal(msg_type, "candidate")) {
@@ -108,24 +110,22 @@ static void ems_signaling_server_handle_message(EmsSignalingServer *server,
                           json_object_get_string_member(candidate, "candidate"));
         }
     } else {
-        g_debug("Error parsing message: %s", error->message);
+        ALOGD("Error parsing message: %s", error->message);
         g_clear_error(&error);
     }
 
 out:
     g_object_unref(parser);
 }
-#include <android/log.h>
 
 static void message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
-    __android_log_print(ANDROID_LOG_ERROR, "ems_signaling_server", "server received a message!");
-    ems_signaling_server_handle_message(EMS_SIGNALING_SERVER(user_data), connection, message);
+    ALOGD("Server received a message");
+    signaling_server_handle_message(GWD_SIGNALING_SERVER(user_data), connection, message);
 }
 
-static void ems_signaling_server_remove_websocket_connection(EmsSignalingServer *server,
-                                                             SoupWebsocketConnection *connection) {
-    g_info("%s", __func__);
-    EmsClientId client_id;
+static void signaling_server_remove_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
+    ALOGD("%s", __func__);
+    ClientId client_id;
 
     client_id = g_object_get_data(G_OBJECT(connection), "client_id");
 
@@ -135,14 +135,13 @@ static void ems_signaling_server_remove_websocket_connection(EmsSignalingServer 
 }
 
 static void closed_cb(SoupWebsocketConnection *connection, gpointer user_data) {
-    g_debug("Connection closed");
+    ALOGD("Connection closed");
 
-    ems_signaling_server_remove_websocket_connection(EMS_SIGNALING_SERVER(user_data), connection);
+    signaling_server_remove_websocket_connection(GWD_SIGNALING_SERVER(user_data), connection);
 }
 
-static void ems_signaling_server_add_websocket_connection(EmsSignalingServer *server,
-                                                          SoupWebsocketConnection *connection) {
-    g_info("%s", __func__);
+static void signaling_server_add_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
+    ALOGD("%s", __func__);
     g_object_ref(connection);
     server->websocket_connections = g_slist_append(server->websocket_connections, connection);
     g_object_set_data(G_OBJECT(connection), "client_id", connection);
@@ -159,9 +158,9 @@ static void websocket_cb(SoupServer *server,
                          const char *path,
                          SoupClientContext *client,
                          gpointer user_data) {
-    g_debug("New connection from %s", soup_client_context_get_host(client));
+    ALOGD("New connection from %s", soup_client_context_get_host(client));
 
-    ems_signaling_server_add_websocket_connection(EMS_SIGNALING_SERVER(user_data), connection);
+    signaling_server_add_websocket_connection(SIGNALING_SERVER(user_data), connection);
 }
 #else
 static void websocket_cb(SoupServer *server,
@@ -169,13 +168,13 @@ static void websocket_cb(SoupServer *server,
                          const char *path,
                          SoupWebsocketConnection *connection,
                          gpointer user_data) {
-    g_debug("New connection from somewhere");
+    ALOGD("New connection from somewhere");
 
-    ems_signaling_server_add_websocket_connection(EMS_SIGNALING_SERVER(user_data), connection);
+    signaling_server_add_websocket_connection(GWD_SIGNALING_SERVER(user_data), connection);
 }
 #endif
 
-static void ems_signaling_server_init(EmsSignalingServer *server) {
+static void signaling_server_init(SignalingServer *server) {
     GError *error = NULL;
 
     server->soup_server = soup_server_new(NULL, NULL);
@@ -188,9 +187,7 @@ static void ems_signaling_server_init(EmsSignalingServer *server) {
     g_assert_no_error(error);
 }
 
-static void ems_signaling_server_send_to_websocket_client(EmsSignalingServer *server,
-                                                          EmsClientId client_id,
-                                                          JsonNode *msg) {
+static void signaling_server_send_to_websocket_client(SignalingServer *server, ClientId client_id, JsonNode *msg) {
     SoupWebsocketConnection *connection = client_id;
     SoupWebsocketState socket_state;
     g_info("%s", __func__);
@@ -213,11 +210,11 @@ static void ems_signaling_server_send_to_websocket_client(EmsSignalingServer *se
     }
 }
 
-void ems_signaling_server_send_sdp_offer(EmsSignalingServer *server, EmsClientId client_id, const gchar *sdp) {
+void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
     JsonBuilder *builder;
     JsonNode *root;
 
-    g_debug("Send offer: %s", sdp);
+    ALOGD("Send offer: %s", sdp);
 
     builder = json_builder_new();
     json_builder_begin_object(builder);
@@ -230,20 +227,20 @@ void ems_signaling_server_send_sdp_offer(EmsSignalingServer *server, EmsClientId
 
     root = json_builder_get_root(builder);
 
-    ems_signaling_server_send_to_websocket_client(server, client_id, root);
+    signaling_server_send_to_websocket_client(server, client_id, root);
 
     json_node_unref(root);
     g_object_unref(builder);
 }
 #include <android/log.h>
-void ems_signaling_server_send_candidate(EmsSignalingServer *server,
-                                         EmsClientId client_id,
-                                         guint line_index,
-                                         const gchar *candidate) {
+void signaling_server_send_candidate(SignalingServer *server,
+                                     ClientId client_id,
+                                     guint line_index,
+                                     const gchar *candidate) {
     JsonBuilder *builder;
     JsonNode *root;
 
-    g_debug("Send candidate: %u %s", line_index, candidate);
+    ALOGD("Send candidate: %u %s", line_index, candidate);
 
     builder = json_builder_new();
     json_builder_begin_object(builder);
@@ -261,24 +258,24 @@ void ems_signaling_server_send_candidate(EmsSignalingServer *server,
 
     root = json_builder_get_root(builder);
 
-    ems_signaling_server_send_to_websocket_client(server, client_id, root);
+    signaling_server_send_to_websocket_client(server, client_id, root);
 
     json_node_unref(root);
     g_object_unref(builder);
 }
 
-static void ems_signaling_server_dispose(GObject *object) {
-    EmsSignalingServer *self = EMS_SIGNALING_SERVER(object);
+static void signaling_server_dispose(GObject *object) {
+    SignalingServer *self = GWD_SIGNALING_SERVER(object);
     GDir *dir;
 
     soup_server_disconnect(self->soup_server);
     g_clear_object(&self->soup_server);
 }
 
-static void ems_signaling_server_class_init(EmsSignalingServerClass *klass) {
+static void signaling_server_class_init(SignalingServerClass *klass) {
     GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
 
-    gobject_class->dispose = ems_signaling_server_dispose;
+    gobject_class->dispose = signaling_server_dispose;
 
     signals[SIGNAL_WS_CLIENT_CONNECTED] = g_signal_new("ws-client-connected",
                                                        G_OBJECT_CLASS_TYPE(klass),

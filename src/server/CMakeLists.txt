@@ -1,11 +1,8 @@
-add_subdirectory(include)
-
-add_library(gws_gst STATIC ems_gstreamer_pipeline.c ems_signaling_server.c ems_callbacks.cpp)
+add_library(gws_gst STATIC gstreamer_pipeline.c signaling_server.c callbacks.cpp)
 
 target_link_libraries(
         gws_gst
         PRIVATE
-        ems_build_defines
         gstreamer_android
         ${LIBSOUP_LIBRARIES}
 )

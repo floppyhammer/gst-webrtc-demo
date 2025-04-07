@@ -1,7 +1,3 @@
-// Copyright 2023, Pluto VR, Inc.
-//
-// SPDX-License-Identifier: BSL-1.0
-
 /*!
  * @file
  * @brief Main file for WebRTC client.
@@ -30,9 +26,9 @@
 #include <memory>
 #include <thread>
 
-#include "ems/em_app_log.h"
-#include "ems/ems_callbacks.h"
-#include "ems/ems_gstreamer_pipeline.h"
+#include "common/app_log.h"
+#include "server/callbacks.h"
+#include "server/gstreamer_pipeline.h"
 
 namespace {
 

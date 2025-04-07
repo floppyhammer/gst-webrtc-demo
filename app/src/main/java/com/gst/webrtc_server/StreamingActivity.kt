@@ -1,7 +1,3 @@
-// Copyright 2023, Pluto VR, Inc.
-//
-// SPDX-License-Identifier: BSL-1.0
-
 package com.gst.webrtc_server
 
 import org.freedesktop.gstreamer.GStreamer
