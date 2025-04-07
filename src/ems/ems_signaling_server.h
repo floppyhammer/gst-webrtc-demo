@@ -14,5 +14,5 @@ void ems_signaling_server_send_sdp_offer(EmsSignalingServer *server, EmsClientId
 
 void ems_signaling_server_send_candidate(EmsSignalingServer *server,
                                          EmsClientId client_id,
-                                         guint mlineindex,
+                                         guint line_index,
                                          const gchar *candidate);

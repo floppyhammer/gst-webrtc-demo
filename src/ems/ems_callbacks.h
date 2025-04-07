@@ -12,6 +12,10 @@
 #include <glib.h>
 #include <stdint.h>
 
+struct _em_proto_UpMessage {
+    int a = 1;
+};
+
 typedef struct _em_proto_UpMessage em_proto_UpMessage;
 
 #ifdef __cplusplus

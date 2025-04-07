@@ -238,12 +238,12 @@ void ems_signaling_server_send_sdp_offer(EmsSignalingServer *server, EmsClientId
 #include <android/log.h>
 void ems_signaling_server_send_candidate(EmsSignalingServer *server,
                                          EmsClientId client_id,
-                                         guint mlineindex,
+                                         guint line_index,
                                          const gchar *candidate) {
     JsonBuilder *builder;
     JsonNode *root;
 
-    g_debug("Send candidate: %u %s", mlineindex, candidate);
+    g_debug("Send candidate: %u %s", line_index, candidate);
 
     builder = json_builder_new();
     json_builder_begin_object(builder);
@@ -255,7 +255,7 @@ void ems_signaling_server_send_candidate(EmsSignalingServer *server,
     json_builder_set_member_name(builder, "candidate");
     json_builder_add_string_value(builder, candidate);
     json_builder_set_member_name(builder, "sdpMLineIndex");
-    json_builder_add_int_value(builder, mlineindex);
+    json_builder_add_int_value(builder, line_index);
     json_builder_end_object(builder);
     json_builder_end_object(builder);
 

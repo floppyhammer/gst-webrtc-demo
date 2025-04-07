@@ -1,14 +1,3 @@
-// Copyright 2023, Pluto VR, Inc.
-//
-// SPDX-License-Identifier: BSL-1.0
-
-/*!
- * @file
- * @brief  Callback type for incoming data over remote rendering data connection
- * @author Rylie Pavlik <rpavlik@collabora.com>
- * @ingroup aux_util
- */
-
 #include "ems_callbacks.h"
 
 #include <stdint.h>
@@ -26,9 +15,6 @@ struct ems_callbacks {
 };
 
 struct ems_callbacks *ems_callbacks_create() {
-    // auto ret = std::make_unique<ems_callbacks>();
-
-    // return ret.release();
     return new ems_callbacks;
 }
 
@@ -37,7 +23,7 @@ void ems_callbacks_destroy(struct ems_callbacks **ptr_callbacks) {
         return;
     }
     std::unique_ptr<ems_callbacks> callbacks(*ptr_callbacks);
-    // take the lock to wait for anybody else who might be in the lock.
+    // Take the lock to wait for anybody else who might be in the lock.
     std::unique_lock<std::mutex> lock(callbacks->mutex);
     lock.unlock();
 

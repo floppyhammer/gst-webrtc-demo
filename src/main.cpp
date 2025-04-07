@@ -34,8 +34,6 @@
 #include "ems/ems_callbacks.h"
 #include "ems/ems_gstreamer_pipeline.h"
 
-#define EMS_APPSRC_NAME "gws_source"
-
 namespace {
 
 void onAppCmd(struct android_app *app, int32_t cmd) {
@@ -131,12 +129,12 @@ void android_main(struct android_app *app) {
     callbacks = ems_callbacks_create();
 
     struct MyGstData *mgd = NULL;
-    gst_pipeline_create(EMS_APPSRC_NAME, callbacks, &mgd);
+    gst_pipeline_create(callbacks, &mgd);
 
     gst_pipeline_play(mgd);
 
     // Main rendering loop.
-    ALOGI("DEBUG: Starting main loop.\n");
+    ALOGD("Starting main loop.\n");
     while (!app->destroyRequested) {
         if (poll_events(app, _state)) {
             //            em_remote_experience_poll_and_render_frame(remote_experience);
@@ -144,6 +142,7 @@ void android_main(struct android_app *app) {
     }
 
     ALOGI("DEBUG: Exited main loop, cleaning up.\n");
+    ems_callbacks_destroy(&callbacks);
     //////////////////////////////////////////
 
     //

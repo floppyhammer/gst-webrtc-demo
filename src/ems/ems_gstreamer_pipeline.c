@@ -7,8 +7,10 @@
 #include "ems_signaling_server.h"
 
 #define GST_USE_UNSTABLE_API
+
 #include <gst/webrtc/datachannel.h>
 #include <gst/webrtc/rtcsessiondescription.h>
+
 #undef GST_USE_UNSTABLE_API
 
 #include <assert.h>
@@ -171,13 +173,14 @@ static void data_channel_message_string_cb(GstWebRTCDataChannel *datachannel, gc
 }
 
 static void webrtc_client_connected_cb(EmsSignalingServer *server, EmsClientId client_id, struct MyGstData *egp) {
+    g_debug("Client connected");
+
     GstBin *pipeline = GST_BIN(egp->pipeline);
     gchar *name;
     GstElement *webrtcbin;
     GstCaps *caps;
     GstStateChangeReturn ret;
     GstWebRTCRTPTransceiver *transceiver;
-    g_debug("Connected");
 
     name = g_strdup_printf("webrtcbin_%p", client_id);
 
@@ -281,8 +284,8 @@ static void webrtc_candidate_cb(EmsSignalingServer *server,
                                 EmsClientId client_id,
                                 guint mlineindex,
                                 const gchar *candidate,
-                                struct MyGstData *egp) {
-    GstBin *pipeline = GST_BIN(egp->pipeline);
+                                struct MyGstData *mgd) {
+    GstBin *pipeline = GST_BIN(mgd->pipeline);
 
     if (strlen(candidate)) {
         GstElement *webrtcbin;
@@ -306,8 +309,8 @@ static GstPadProbeReturn remove_webrtcbin_probe_cb(GstPad *pad, GstPadProbeInfo 
     return GST_PAD_PROBE_REMOVE;
 }
 
-static void webrtc_client_disconnected_cb(EmsSignalingServer *server, EmsClientId client_id, struct MyGstData *egp) {
-    GstBin *pipeline = GST_BIN(egp->pipeline);
+static void webrtc_client_disconnected_cb(EmsSignalingServer *server, EmsClientId client_id, struct MyGstData *mgd) {
+    GstBin *pipeline = GST_BIN(mgd->pipeline);
     GstElement *webrtcbin;
 
     webrtcbin = get_webrtcbin_for_client(pipeline, client_id);
@@ -397,7 +400,6 @@ void gst_pipeline_play(struct MyGstData *mgd) {
     main_loop = g_main_loop_new(NULL, FALSE);
 
     GstStateChangeReturn ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
-
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
     g_signal_connect(signaling_server, "ws-client-connected", G_CALLBACK(webrtc_client_connected_cb), mgd);
@@ -444,9 +446,7 @@ void gstAndroidLog(GstDebugCategory *category,
 
 #define U_TYPED_CALLOC(TYPE) ((TYPE *)calloc(1, sizeof(TYPE)))
 
-void gst_pipeline_create(const char *appsrc_name,
-                         struct ems_callbacks *callbacks_collection,
-                         struct MyGstData **out_gst_data) {
+void gst_pipeline_create(struct ems_callbacks *callbacks_collection, struct MyGstData **out_gst_data) {
     gchar *pipeline_str;
     GstElement *pipeline;
     GError *error = NULL;
@@ -476,12 +476,15 @@ void gst_pipeline_create(const char *appsrc_name,
 
     gst_init(NULL, NULL);
 
+    // Set up logger
+    {
 #ifdef __ANDROID__
-    gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
+        gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
 #endif
-    gst_debug_set_default_threshold(GST_LEVEL_WARNING);
-    gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_INFO);
-    gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_INFO);
+        gst_debug_set_default_threshold(GST_LEVEL_WARNING);
+        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_INFO);
+        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_INFO);
+    }
 
     pipeline = gst_parse_launch(pipeline_str, &error);
     g_assert_no_error(error);
