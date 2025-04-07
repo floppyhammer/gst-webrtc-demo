@@ -85,37 +85,23 @@ static void connect_webrtc_to_tee(GstElement *webrtcbin) {
     GstElement *tee;
     GstPad *srcpad;
     GstPad *sinkpad;
-    GstPad *q_srcpad;
-    GstPad *q_sinkpad;
     GstPadLinkReturn ret;
-    GstElement *queue;
 
     pipeline = GST_ELEMENT(gst_element_get_parent(webrtcbin));
     if (pipeline == NULL) return;
 
     tee = gst_bin_get_by_name(GST_BIN(pipeline), WEBRTC_TEE_NAME);
+
     srcpad = gst_element_request_pad_simple(tee, "src_%u");
-
-    queue = gst_element_factory_make("queue", "tee_to_webrtc_queue");
-    gst_bin_add(GST_BIN(pipeline), queue);
-
-    q_sinkpad = gst_element_get_static_pad(queue, "sink");
-    q_srcpad = gst_element_get_static_pad(queue, "src");
-
-    ret = gst_pad_link(srcpad, q_sinkpad);
-    g_assert(ret == GST_PAD_LINK_OK);
-
     sinkpad = gst_element_request_pad_simple(webrtcbin, "sink_0");
 
-    ret = gst_pad_link(q_srcpad, sinkpad);
+    ret = gst_pad_link(srcpad, sinkpad);
     g_assert(ret == GST_PAD_LINK_OK);
 
     gst_object_unref(srcpad);
     gst_object_unref(sinkpad);
     gst_object_unref(tee);
     gst_object_unref(pipeline);
-    gst_object_unref(q_srcpad);
-    gst_object_unref(q_sinkpad);
 }
 
 static void on_offer_created(GstPromise *promise, GstElement *webrtcbin) {
