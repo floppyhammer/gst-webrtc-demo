@@ -1,4 +1,4 @@
-#include "../../deps/gstreamer_android/x86/include/gstreamer-1.0/gst/gstelement.h"
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {

@@ -11,9 +11,9 @@ cd $(dirname $0)
 mkdir -p ./deps/gstreamer_android
 
 # Download the file using curl
-curl -L -o ./deps/gstreamer_android/gstreamer-1.0-android-universal-1.22.8.tar.xz https://gstreamer.freedesktop.org/data/pkg/android/1.22.8/gstreamer-1.0-android-universal-1.22.8.tar.xz
+curl -L -o ./deps/gstreamer_android/gstreamer-1.0-android-universal-1.26.0.tar.xz https://gstreamer.freedesktop.org/data/pkg/android/1.26.0/gstreamer-1.0-android-universal-1.26.0.tar.xz
 
 # Extract the contents of the downloaded file to the destination directory
-tar -xf ./deps/gstreamer_android/gstreamer-1.0-android-universal-1.22.8.tar.xz -C ./deps/gstreamer_android
+tar -xf ./deps/gstreamer_android/gstreamer-1.0-android-universal-1.26.0.tar.xz -C ./deps/gstreamer_android
 
-rm ./deps/gstreamer_android/gstreamer-1.0-android-universal-1.22.8.tar.xz
+rm ./deps/gstreamer_android/gstreamer-1.0-android-universal-1.26.0.tar.xz

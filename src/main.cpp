@@ -1,9 +1,3 @@
-/*!
- * @file
- * @brief Main file for WebRTC client.
- * @author Moshi Turner <moses@collabora.com>
- * @author Rylie Pavlik <rpavlik@collabora.com>
- */
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <GLES3/gl32.h>
@@ -111,14 +105,12 @@ void android_main(struct android_app *app) {
     // setenv("GST_DEBUG", "GST_CAPS:5", 1);
     setenv("GST_DEBUG", "*:2,webrtc*:9,sctp*:9,dtls*:9,amcvideodec:9", 1);
 
-    // do not do ansi color codes
+    // Do not do ansi color codes
     setenv("GST_DEBUG_NO_COLOR", "1", 1);
 
     JNIEnv *env = nullptr;
     (*app->activity->vm).AttachCurrentThread(&env, NULL);
     app->onAppCmd = onAppCmd;
-
-    //    auto initialEglData = std::make_unique<EglData>();
 
     //////////////////////////////////////////
     struct ems_callbacks *callbacks = NULL;
@@ -129,7 +121,6 @@ void android_main(struct android_app *app) {
 
     gst_pipeline_play(mgd);
 
-    // Main rendering loop.
     ALOGD("Starting main loop.\n");
     while (!app->destroyRequested) {
         if (poll_events(app, _state)) {
@@ -137,15 +128,11 @@ void android_main(struct android_app *app) {
         }
     }
 
+    gst_pipeline_stop(mgd);
+
     ALOGI("DEBUG: Exited main loop, cleaning up.\n");
     ems_callbacks_destroy(&callbacks);
     //////////////////////////////////////////
-
-    //
-    // End RR cleanup
-    //
-
-    //    initialEglData = nullptr;
 
     (*app->activity->vm).DetachCurrentThread();
 }

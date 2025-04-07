@@ -235,12 +235,12 @@ void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id
 #include <android/log.h>
 void signaling_server_send_candidate(SignalingServer *server,
                                      ClientId client_id,
-                                     guint line_index,
+                                     guint mline_index,
                                      const gchar *candidate) {
     JsonBuilder *builder;
     JsonNode *root;
 
-    ALOGD("Send candidate: %u %s", line_index, candidate);
+    ALOGD("Send candidate: %u %s", mline_index, candidate);
 
     builder = json_builder_new();
     json_builder_begin_object(builder);
@@ -252,7 +252,7 @@ void signaling_server_send_candidate(SignalingServer *server,
     json_builder_set_member_name(builder, "candidate");
     json_builder_add_string_value(builder, candidate);
     json_builder_set_member_name(builder, "sdpMLineIndex");
-    json_builder_add_int_value(builder, line_index);
+    json_builder_add_int_value(builder, mline_index);
     json_builder_end_object(builder);
     json_builder_end_object(builder);
 

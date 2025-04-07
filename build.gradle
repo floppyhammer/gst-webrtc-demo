@@ -34,10 +34,6 @@ task clean(type: Delete) {
 }
 
 ext {
-    // If you are building on Windows, you will need to explicitly set eigenIncludeDir in your
-    // local.properties file since the default value provided below only makes sense on *nix
-    eigenIncludeDir = project.findProperty('eigenIncludeDir') ?: '/usr/include/eigen3'
-
     gstreamerBaseDir = project.findProperty('gstreamerBaseDir') ?: "${projectDir}/deps/gstreamer_android"
     gstreamerArchDir = project.findProperty('gstreamerArchDir') ?: ''
 
