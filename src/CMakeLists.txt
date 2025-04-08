@@ -1,35 +1,24 @@
-add_subdirectory(server)
+add_library(webrtc_server_common server/gstreamer_pipeline.c server/signaling_server.c)
 
-# build native_app_glue as a static lib
-add_library(
-        native_app_glue STATIC
-        ${ANDROID_NDK}/sources/android/native_app_glue/android_native_app_glue.c
-)
-target_include_directories(native_app_glue PUBLIC ${ANDROID_NDK}/sources/android/native_app_glue)
-
-# now build app's shared lib
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror")
-
-add_library(gst_webrtc_server SHARED main.cpp)
-
-target_include_directories(gst_webrtc_server PRIVATE ${GLIB_INCLUDE_DIRS} ${GST_INCLUDE_DIRS})
-
-# add lib dependencies
 target_link_libraries(
-        gst_webrtc_server
+        webrtc_server_common
         PRIVATE
-        gws_gst
-        native_app_glue
-        Vulkan::Vulkan
-        EGL::EGL
-        OpenGLES::OpenGLESv3
-        ${ANDROID_LIBRARY}
-        ${ANDROID_LOG_LIBRARY}
+        ${GST_LIBRARIES}
+        ${GST_SDP_LIBRARIES}
+        ${GST_WEBRTC_LIBRARIES}
+        ${GLIB_LIBRARIES}
+        ${LIBSOUP_LIBRARIES}
+        ${JSONGLIB_LIBRARIES}
+        ${GIO_LIBRARIES}
 )
 
-# Export ANativeActivity_onCreate()
-set_property(
-        TARGET gst_webrtc_server
-        APPEND_STRING
-        PROPERTY LINK_FLAGS " -u ANativeActivity_onCreate"
+target_include_directories(
+        webrtc_server_common
+        PRIVATE
+        ${GST_INCLUDE_DIRS}
+        ${LIBSOUP_INCLUDE_DIRS}
+        ${JSONGLIB_INCLUDE_DIRS}
+        ${GIO_INCLUDE_DIRS}
+        PUBLIC
+        ${GLIB_INCLUDE_DIRS}
 )

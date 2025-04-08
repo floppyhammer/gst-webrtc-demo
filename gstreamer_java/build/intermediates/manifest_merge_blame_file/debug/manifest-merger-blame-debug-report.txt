@@ -1,8 +1,0 @@
-1<?xml version="1.0" encoding="utf-8"?>
-2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-3    package="org.freedesktop.gstreamer" >
-4
-5    <uses-sdk android:minSdkVersion="26" />
-5-->/home/zzz/Documents/gst-webrtc-server/gstreamer_java/build/intermediates/tmp/ProcessLibraryManifest/debug/tempAndroidManifest2535518866508066973.xml
-6
-7</manifest>
