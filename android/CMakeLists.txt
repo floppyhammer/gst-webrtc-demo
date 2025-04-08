@@ -1,11 +1,8 @@
 cmake_minimum_required(VERSION 3.10.2)
 
-project(gst_webrtc_server_project VERSION 0.0.1)
+project(gst_webrtc_server_demo VERSION 0.0.1)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -15,17 +12,6 @@ find_package(OpenGLES REQUIRED COMPONENTS V3)
 
 # Default to PIC code
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-# Helper to obey CMP0077 and work around warnings.
-function(setForce NAME VALUE)
-    set(${NAME}
-            ${VALUE}
-            CACHE INTERNAL "" FORCE
-    )
-endfunction()
-
-setforce(BUILD_TESTING OFF)
-setforce(BUILD_DOC OFF)
 
 if (ANDROID)
     find_library(ANDROID_LOG_LIBRARY log)
