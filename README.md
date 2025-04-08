@@ -1,6 +1,8 @@
-# GStreamer WebRTC Demo
+# GStreamer WebRTC Server
 
-## Build dep: GStreamer
+This is a test server on Android. See the compatible [client](https://github.com/floppyhammer/gst-webrtc-client).
+
+## Build dependency: GStreamer
 
 You can get an upstream build of GStreamer by running `./download_gst.sh` which
 will extract it to `deps/gstreamer_android`. This is the default search
