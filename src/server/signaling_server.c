@@ -20,7 +20,9 @@
 #include <libsoup/soup-version.h>
 
 #if SOUP_CHECK_VERSION(3, 0, 0)
-    #include <libsoup/soup-server-message.h>
+
+#include <libsoup/soup-server-message.h>
+
 #endif
 
 #include "../common/app_log.h"
@@ -62,6 +64,7 @@ static void http_cb(SoupServer *server,
     soup_message_set_status(msg, SOUP_STATUS_NOT_FOUND);
 }
 #else
+
 static void http_cb(SoupServer *server,     //
                     SoupServerMessage *msg, //
                     const char *path,       //
@@ -72,6 +75,7 @@ static void http_cb(SoupServer *server,     //
     ALOGE("Got an erroneous HTTP request from %s", soup_server_message_get_remote_host(msg));
     soup_server_message_set_status(msg, SOUP_STATUS_NOT_FOUND, NULL);
 }
+
 #endif
 
 static void signaling_server_handle_message(SignalingServer *server,
@@ -114,16 +118,18 @@ static void signaling_server_handle_message(SignalingServer *server,
         g_clear_error(&error);
     }
 
-out:
+    out:
     g_object_unref(parser);
 }
 
-static void message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
+static void
+message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
     ALOGD("Server received a message");
     signaling_server_handle_message(GWD_SIGNALING_SERVER(user_data), connection, message);
 }
 
-static void signaling_server_remove_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
+static void signaling_server_remove_websocket_connection(SignalingServer *server,
+                                                         SoupWebsocketConnection *connection) {
     ALOGD("%s", __func__);
     ClientId client_id;
 
@@ -140,14 +146,15 @@ static void closed_cb(SoupWebsocketConnection *connection, gpointer user_data) {
     signaling_server_remove_websocket_connection(GWD_SIGNALING_SERVER(user_data), connection);
 }
 
-static void signaling_server_add_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
+static void signaling_server_add_websocket_connection(SignalingServer *server,
+                                                      SoupWebsocketConnection *connection) {
     ALOGD("%s", __func__);
     g_object_ref(connection);
     server->websocket_connections = g_slist_append(server->websocket_connections, connection);
     g_object_set_data(G_OBJECT(connection), "client_id", connection);
 
-    g_signal_connect(connection, "message", (GCallback)message_cb, server);
-    g_signal_connect(connection, "closed", (GCallback)closed_cb, server);
+    g_signal_connect(connection, "message", (GCallback) message_cb, server);
+    g_signal_connect(connection, "closed", (GCallback) closed_cb, server);
 
     g_signal_emit(server, signals[SIGNAL_WS_CLIENT_CONNECTED], 0, connection);
 }
@@ -163,6 +170,7 @@ static void websocket_cb(SoupServer *server,
     signaling_server_add_websocket_connection(SIGNALING_SERVER(user_data), connection);
 }
 #else
+
 static void websocket_cb(SoupServer *server,
                          SoupServerMessage *msg,
                          const char *path,
@@ -172,6 +180,7 @@ static void websocket_cb(SoupServer *server,
 
     signaling_server_add_websocket_connection(GWD_SIGNALING_SERVER(user_data), connection);
 }
+
 #endif
 
 static void signaling_server_init(SignalingServer *server) {
@@ -181,13 +190,15 @@ static void signaling_server_init(SignalingServer *server) {
     g_assert_no_error(error);
 
     soup_server_add_handler(server->soup_server, NULL, http_cb, server, NULL);
-    soup_server_add_websocket_handler(server->soup_server, "/ws", NULL, NULL, websocket_cb, server, NULL);
+    soup_server_add_websocket_handler(server->soup_server, "/ws", NULL, NULL, websocket_cb, server,
+                                      NULL);
 
     soup_server_listen_all(server->soup_server, 8080, 0, &error);
     g_assert_no_error(error);
 }
 
-static void signaling_server_send_to_websocket_client(SignalingServer *server, ClientId client_id, JsonNode *msg) {
+static void signaling_server_send_to_websocket_client(SignalingServer *server, ClientId client_id,
+                                                      JsonNode *msg) {
     SoupWebsocketConnection *connection = client_id;
     SoupWebsocketState socket_state;
     g_info("%s", __func__);
@@ -210,7 +221,8 @@ static void signaling_server_send_to_websocket_client(SignalingServer *server, C
     }
 }
 
-void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
+void
+signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
     JsonBuilder *builder;
     JsonNode *root;
 
@@ -232,15 +244,17 @@ void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id
     json_node_unref(root);
     g_object_unref(builder);
 }
+
 #include <android/log.h>
+
 void signaling_server_send_candidate(SignalingServer *server,
                                      ClientId client_id,
-                                     guint mline_index,
+                                     guint m_line_index,
                                      const gchar *candidate) {
     JsonBuilder *builder;
     JsonNode *root;
 
-    ALOGD("Send candidate: %u %s", mline_index, candidate);
+    ALOGD("Send candidate: %u %s", m_line_index, candidate);
 
     builder = json_builder_new();
     json_builder_begin_object(builder);
@@ -252,7 +266,7 @@ void signaling_server_send_candidate(SignalingServer *server,
     json_builder_set_member_name(builder, "candidate");
     json_builder_add_string_value(builder, candidate);
     json_builder_set_member_name(builder, "sdpMLineIndex");
-    json_builder_add_int_value(builder, mline_index);
+    json_builder_add_int_value(builder, m_line_index);
     json_builder_end_object(builder);
     json_builder_end_object(builder);
 

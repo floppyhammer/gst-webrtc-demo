@@ -61,7 +61,7 @@ struct MyState {
 MyState _state = {};
 
 /**
- * Poll for Android and OpenXR events, and handle them
+ * Poll for Android events, and handle them
  *
  * @param state app state
  *

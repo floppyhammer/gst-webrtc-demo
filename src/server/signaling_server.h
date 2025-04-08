@@ -14,5 +14,5 @@ void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id
 
 void signaling_server_send_candidate(SignalingServer *server,
                                      ClientId client_id,
-                                     guint mline_index,
+                                     guint m_line_index,
                                      const gchar *candidate);
