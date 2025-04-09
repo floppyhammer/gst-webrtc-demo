@@ -130,7 +130,6 @@ void android_main(struct android_app *app) {
         if (!wrote_dot && now_seconds - start_seconds > 5) {
             wrote_dot = true;
             gst_pipeline_debug(mgd);
-            ALOGD("Wrote dot file");
         }
     }
 

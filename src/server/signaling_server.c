@@ -37,11 +37,19 @@ struct _SignalingServer {
 
 G_DEFINE_TYPE(SignalingServer, signaling_server, G_TYPE_OBJECT)
 
-enum { SIGNAL_WS_CLIENT_CONNECTED, SIGNAL_WS_CLIENT_DISCONNECTED, SIGNAL_SDP_ANSWER, SIGNAL_CANDIDATE, N_SIGNALS };
+enum {
+    SIGNAL_WS_CLIENT_CONNECTED,
+    SIGNAL_WS_CLIENT_DISCONNECTED,
+    SIGNAL_SDP_ANSWER,
+    SIGNAL_CANDIDATE,
+    N_SIGNALS
+};
 
 static guint signals[N_SIGNALS];
 
-SignalingServer *signaling_server_new() { return GWD_SIGNALING_SERVER(g_object_new(TYPE_SIGNALING_SERVER, NULL)); }
+SignalingServer *signaling_server_new() {
+    return GWD_SIGNALING_SERVER(g_object_new(TYPE_SIGNALING_SERVER, NULL));
+}
 
 #if !SOUP_CHECK_VERSION(3, 0, 0)
 static void http_cb(SoupServer *server, SoupMessage *msg, const char *path, GHashTable *query,
@@ -66,8 +74,9 @@ static void http_cb(SoupServer *server, //
 
 #endif
 
-static void signaling_server_handle_message(SignalingServer *server, SoupWebsocketConnection *connection,
-                                            GBytes *message) {
+static void
+signaling_server_handle_message(SignalingServer *server, SoupWebsocketConnection *connection,
+                                GBytes *message) {
     gsize length = 0;
     const gchar *msg_data = g_bytes_get_data(message, &length);
     JsonParser *parser = json_parser_new();
@@ -102,11 +111,12 @@ static void signaling_server_handle_message(SignalingServer *server, SoupWebsock
         g_clear_error(&error);
     }
 
-out:
+    out:
     g_object_unref(parser);
 }
 
-static void message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
+static void
+message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
     ALOGD("Server received a message");
 
     switch (type) {
@@ -117,13 +127,14 @@ static void message_cb(SoupWebsocketConnection *connection, gint type, GBytes *m
         case SOUP_WEBSOCKET_DATA_TEXT: {
             signaling_server_handle_message(GWD_SIGNALING_SERVER(user_data), connection, message);
         }
-        break;
+            break;
         default:
             g_assert_not_reached();
     }
 }
 
-static void signaling_server_remove_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
+static void signaling_server_remove_websocket_connection(SignalingServer *server,
+                                                         SoupWebsocketConnection *connection) {
     ALOGD("Removed websocket connection");
 
     ClientId client_id = g_object_get_data(G_OBJECT(connection), "client_id");
@@ -139,7 +150,8 @@ static void closed_cb(SoupWebsocketConnection *connection, gpointer user_data) {
     signaling_server_remove_websocket_connection(GWD_SIGNALING_SERVER(user_data), connection);
 }
 
-static void signaling_server_add_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
+static void signaling_server_add_websocket_connection(SignalingServer *server,
+                                                      SoupWebsocketConnection *connection) {
     ALOGD("Added websocket connection");
 
     g_object_ref(connection);
@@ -177,13 +189,15 @@ static void signaling_server_init(SignalingServer *server) {
     g_assert_no_error(error);
 
     soup_server_add_handler(server->soup_server, NULL, http_cb, server, NULL);
-    soup_server_add_websocket_handler(server->soup_server, "/ws", NULL, NULL, websocket_cb, server, NULL);
+    soup_server_add_websocket_handler(server->soup_server, "/ws", NULL, NULL, websocket_cb, server,
+                                      NULL);
 
     soup_server_listen_all(server->soup_server, 8080, 0, &error);
     g_assert_no_error(error);
 }
 
-static void signaling_server_send_to_websocket_client(SignalingServer *server, ClientId client_id, JsonNode *msg) {
+static void signaling_server_send_to_websocket_client(SignalingServer *server, ClientId client_id,
+                                                      JsonNode *msg) {
     SoupWebsocketConnection *connection = client_id;
     SoupWebsocketState socket_state;
     g_info("%s", __func__);
@@ -206,7 +220,8 @@ static void signaling_server_send_to_websocket_client(SignalingServer *server, C
     }
 }
 
-void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
+void
+signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
     JsonBuilder *builder;
     JsonNode *root;
 
@@ -229,8 +244,9 @@ void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id
     g_object_unref(builder);
 }
 
-void signaling_server_send_candidate(SignalingServer *server, ClientId client_id, guint m_line_index,
-                                     const gchar *candidate) {
+void
+signaling_server_send_candidate(SignalingServer *server, ClientId client_id, guint m_line_index,
+                                const gchar *candidate) {
     JsonBuilder *builder;
     JsonNode *root;
 
@@ -272,16 +288,22 @@ static void signaling_server_class_init(SignalingServerClass *klass) {
     gobject_class->dispose = signaling_server_dispose;
 
     signals[SIGNAL_WS_CLIENT_CONNECTED] =
-            g_signal_new("ws-client-connected", G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+            g_signal_new("ws-client-connected", G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_LAST, 0,
+                         NULL, NULL, NULL,
                          G_TYPE_NONE, 1, G_TYPE_POINTER);
 
     signals[SIGNAL_WS_CLIENT_DISCONNECTED] =
-            g_signal_new("ws-client-disconnected", G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+            g_signal_new("ws-client-disconnected", G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_LAST, 0,
+                         NULL, NULL, NULL,
                          G_TYPE_NONE, 1, G_TYPE_POINTER);
 
-    signals[SIGNAL_SDP_ANSWER] = g_signal_new("sdp-answer", G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_LAST, 0, NULL,
-                                              NULL, NULL, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_STRING);
+    signals[SIGNAL_SDP_ANSWER] = g_signal_new("sdp-answer", G_OBJECT_CLASS_TYPE(klass),
+                                              G_SIGNAL_RUN_LAST, 0, NULL,
+                                              NULL, NULL, G_TYPE_NONE, 2, G_TYPE_POINTER,
+                                              G_TYPE_STRING);
 
-    signals[SIGNAL_CANDIDATE] = g_signal_new("candidate", G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_LAST, 0, NULL, NULL,
-                                             NULL, G_TYPE_NONE, 3, G_TYPE_POINTER, G_TYPE_UINT, G_TYPE_STRING);
+    signals[SIGNAL_CANDIDATE] = g_signal_new("candidate", G_OBJECT_CLASS_TYPE(klass),
+                                             G_SIGNAL_RUN_LAST, 0, NULL, NULL,
+                                             NULL, G_TYPE_NONE, 3, G_TYPE_POINTER, G_TYPE_UINT,
+                                             G_TYPE_STRING);
 }
