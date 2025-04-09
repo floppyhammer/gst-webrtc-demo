@@ -18,7 +18,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#define WEBRTC_TEE_NAME "webrtctee"
+#define MY_TEE_NAME "my_tee"
 
 SignalingServer *signaling_server;
 
@@ -36,7 +36,7 @@ static gboolean sigint_handler(gpointer user_data) {
 }
 
 static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data) {
-    struct MyGstData *mgd = (struct MyGstData *)user_data;
+    struct MyGstData *mgd = (struct MyGstData *) user_data;
     GstBin *pipeline = GST_BIN(mgd->pipeline);
 
     switch (GST_MESSAGE_TYPE(message)) {
@@ -48,7 +48,8 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
             g_error("Error: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
-        } break;
+        }
+        break;
         case GST_MESSAGE_WARNING: {
             GError *gerr;
             gchar *debug_msg;
@@ -57,10 +58,12 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
             g_warning("Warning: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
-        } break;
+        }
+        break;
         case GST_MESSAGE_EOS: {
             g_error("Got EOS!!");
-        } break;
+        }
+        break;
         default:
             break;
     }
@@ -88,7 +91,7 @@ static void link_webrtc_to_tee(GstElement *webrtcbin) {
     pipeline = GST_ELEMENT(gst_element_get_parent(webrtcbin));
     if (pipeline == NULL) return;
 
-    tee = gst_bin_get_by_name(GST_BIN(pipeline), WEBRTC_TEE_NAME);
+    tee = gst_bin_get_by_name(GST_BIN(pipeline), MY_TEE_NAME);
 
     srcpad = gst_element_request_pad_simple(tee, "src_%u");
     sinkpad = gst_element_request_pad_simple(webrtcbin, "sink_0");
@@ -108,6 +111,7 @@ static void on_offer_created(GstPromise *promise, GstElement *webrtcbin) {
     GstWebRTCSessionDescription *offer = NULL;
     gchar *sdp;
 
+    // Create offer
     gst_structure_get(gst_promise_get_reply(promise), "offer", GST_TYPE_WEBRTC_SESSION_DESCRIPTION, &offer, NULL);
     gst_promise_unref(promise);
 
@@ -171,7 +175,7 @@ static void data_channel_message_string_cb(GstWebRTCDataChannel *data_channel, g
 }
 
 static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_id, struct MyGstData *mgd) {
-    ALOGD("Client connected");
+    ALOGD("Client connected, ID: %p", client_id);
 
     GstBin *pipeline_bin = GST_BIN(mgd->pipeline);
     gchar *name;
@@ -195,22 +199,25 @@ static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_
 
     // I also think this would work if the pipeline state is READY but /shrug
 
-    // TODO add priority
-    GstStructure *data_channel_options = gst_structure_new_from_string("data-channel-options, ordered=true");
-    g_signal_emit_by_name(webrtcbin, "create-data-channel", "channel", data_channel_options, &mgd->data_channel);
-    gst_clear_structure(&data_channel_options);
+    // Set up data channel
+    {
+        // TODO add priority
+        GstStructure *data_channel_options = gst_structure_new_from_string("data-channel-options, ordered=true");
+        g_signal_emit_by_name(webrtcbin, "create-data-channel", "channel", data_channel_options, &mgd->data_channel);
+        gst_clear_structure(&data_channel_options);
 
-    if (!mgd->data_channel) {
-        ALOGE("Couldn't create data channel!");
-        assert(false);
-    } else {
-        ALOGD("Successfully created data channel");
+        if (!mgd->data_channel) {
+            ALOGE("Couldn't create data channel!");
+            assert(false);
+        } else {
+            ALOGD("Successfully created data channel");
 
-        g_signal_connect(mgd->data_channel, "on-open", G_CALLBACK(data_channel_open_cb), mgd);
-        g_signal_connect(mgd->data_channel, "on-close", G_CALLBACK(data_channel_close_cb), mgd);
-        g_signal_connect(mgd->data_channel, "on-error", G_CALLBACK(data_channel_error_cb), mgd);
-        g_signal_connect(mgd->data_channel, "on-message-data", G_CALLBACK(data_channel_message_data_cb), mgd);
-        g_signal_connect(mgd->data_channel, "on-message-string", G_CALLBACK(data_channel_message_string_cb), mgd);
+            g_signal_connect(mgd->data_channel, "on-open", G_CALLBACK(data_channel_open_cb), mgd);
+            g_signal_connect(mgd->data_channel, "on-close", G_CALLBACK(data_channel_close_cb), mgd);
+            g_signal_connect(mgd->data_channel, "on-error", G_CALLBACK(data_channel_error_cb), mgd);
+            g_signal_connect(mgd->data_channel, "on-message-data", G_CALLBACK(data_channel_message_data_cb), mgd);
+            g_signal_connect(mgd->data_channel, "on-message-string", G_CALLBACK(data_channel_message_string_cb), mgd);
+        }
     }
 
     ret = gst_element_set_state(webrtcbin, GST_STATE_PLAYING);
@@ -218,23 +225,26 @@ static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_
 
     g_signal_connect(webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
 
-    caps = gst_caps_from_string(
-        "application/x-rtp, "
-        "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,profile-level-id=("
-        "string)42e01f");
-    g_signal_emit_by_name(webrtcbin,
-                          "add-transceiver",
-                          GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY,
-                          caps,
-                          &transceiver);
+    // Add transceiver
+    {
+        caps = gst_caps_from_string(
+            "application/x-rtp, "
+            "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,profile-level-id=("
+            "string)42e01f");
+        g_signal_emit_by_name(webrtcbin,
+                              "add-transceiver",
+                              GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY,
+                              caps,
+                              &transceiver);
 
-    gst_caps_unref(caps);
-    gst_clear_object(&transceiver);
+        gst_caps_unref(caps);
+        gst_clear_object(&transceiver);
+    }
 
-    promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_offer_created, webrtcbin, NULL);
+    promise = gst_promise_new_with_change_func((GstPromiseChangeFunc) on_offer_created, webrtcbin, NULL);
     g_signal_emit_by_name(webrtcbin, "create-offer", NULL, promise);
 
-    GST_DEBUG_BIN_TO_DOT_FILE(pipeline_bin, GST_DEBUG_GRAPH_SHOW_ALL, "rtcbin");
+    GST_DEBUG_BIN_TO_DOT_FILE(pipeline_bin, GST_DEBUG_GRAPH_SHOW_ALL, "pipeline_with_webrtcbin");
 
     g_free(name);
 }
@@ -346,7 +356,8 @@ static gboolean restart_source(gpointer user_data) {
     gst_element_set_locked_state(rd->src, TRUE);
     e = gst_bin_get_by_name(GST_BIN(rd->pipeline), "srtqueue");
     gst_bin_add(GST_BIN(rd->pipeline), rd->src);
-    if (!gst_element_link(rd->src, e)) g_assert_not_reached();
+    if (!gst_element_link(rd->src, e))
+        g_assert_not_reached();
     gst_element_set_locked_state(rd->src, FALSE);
     ret = gst_element_set_state(rd->src, GST_STATE_PLAYING);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
@@ -416,7 +427,7 @@ void gst_pipeline_stop(struct MyGstData *mgd) {
                                      GST_CLOCK_TIME_NONE,
                                      GST_MESSAGE_EOS | GST_MESSAGE_ERROR);
     //! @todo Should check if we got an error message here or an eos.
-    (void)msg;
+    (void) msg;
 
     // Completely stop the pipeline.
     ALOGD("Setting to NULL");
@@ -460,19 +471,22 @@ void gst_pipeline_create(struct MyGstData **out_gst_data) {
     signaling_server = signaling_server_new();
 
     pipeline_str = g_strdup_printf(
-        "videotestsrc ! "                  //
-        "queue ! "                         //
-        "videoconvert ! "                  //
-        "video/x-raw,format=NV12 ! "       //
-        "queue ! "                         //
-        "x264enc tune=zerolatency ! "      //
+        "videotestsrc ! " //
+#ifndef __ANDROID__
+        "tee name=tp tp. ! queue! autovideosink tp. ! " //
+#endif
+        "queue ! " //
+        "videoconvert ! " //
+        "video/x-raw,format=NV12 ! " //
+        "queue ! " //
+        "x264enc tune=zerolatency ! " //
         "video/x-h264,profile=baseline ! " //
-        "queue ! "                         //
-        "h264parse ! "                     //
-        "rtph264pay config-interval=1 ! "  //
-        "application/x-rtp,payload=96 ! "  //
+        "queue ! " //
+        "h264parse ! " //
+        "rtph264pay config-interval=1 ! " //
+        "application/x-rtp,payload=96 ! " //
         "tee name=%s allow-not-linked=true",
-        WEBRTC_TEE_NAME);
+        MY_TEE_NAME);
 
     // No webrtc bin yet until later!
 
@@ -506,4 +520,13 @@ void gst_pipeline_create(struct MyGstData **out_gst_data) {
     mgd->pipeline = pipeline;
 
     *out_gst_data = mgd;
+}
+
+inline void gst_pipeline_debug(struct MyGstData *mgd) {
+#ifdef __ANDROID__
+    const gchar *filename = "pipeline";
+#else
+    const gchar *filename = "/sdcard/pipeline";
+#endif
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, filename);
 }

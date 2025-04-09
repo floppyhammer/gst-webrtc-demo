@@ -103,6 +103,9 @@ void android_main(struct android_app *app) {
     // setenv("GST_DEBUG", "GST_CAPS:5", 1);
     setenv("GST_DEBUG", "*:2,webrtc*:9,sctp*:9,dtls*:9,amcvideodec:9", 1);
 
+    // Specify dot file dir
+    setenv("GST_DEBUG_DUMP_DOT_DIR", "/storage/sdcard0/", 1);
+
     // Do not do ansi color codes
     setenv("GST_DEBUG_NO_COLOR", "1", 1);
 
@@ -116,14 +119,22 @@ void android_main(struct android_app *app) {
 
     gst_pipeline_play(mgd);
 
-    ALOGD("Starting main loop.\n");
+    time_t start_seconds = time(NULL);
+    bool wrote_dot = false;
+
+    ALOGD("Starting main loop");
     while (!app->destroyRequested) {
-        if (poll_events(app, _state)) {
-            //            em_remote_experience_poll_and_render_frame(remote_experience);
+        poll_events(app, _state);
+
+        time_t now_seconds = time(NULL);
+        if (!wrote_dot && now_seconds - start_seconds > 5) {
+            wrote_dot = true;
+            gst_pipeline_debug(mgd);
+            ALOGD("Wrote dot file");
         }
     }
 
-    ALOGI("DEBUG: Exited main loop, cleaning up.\n");
+    ALOGD("DEBUG: Exited main loop, cleaning up");
 
     gst_pipeline_stop(mgd);
     //////////////////////////////////////////
