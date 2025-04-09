@@ -19,7 +19,7 @@
 #include <memory>
 #include <thread>
 
-#include "../../src/utils/app_log.h"
+#include "../../src/utils/logger.h"
 #include "../../src/server/gstreamer_pipeline.h"
 
 namespace {

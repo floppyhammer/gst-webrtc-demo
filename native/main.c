@@ -4,7 +4,7 @@
 
 #include "../src/server/gstreamer_pipeline.h"
 #include "../src/server/signaling_server.h"
-#include "../src/utils/app_log.h"
+#include "../src/utils/logger.h"
 
 int main(int argc, char *argv[]) {
     setenv("GST_DEBUG", "GST_TRACER:7", 1);

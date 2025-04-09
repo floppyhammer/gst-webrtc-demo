@@ -25,7 +25,7 @@
 
 #endif
 
-#include "../utils/app_log.h"
+#include "../utils/logger.h"
 
 struct _SignalingServer {
     GObject parent;
@@ -84,23 +84,20 @@ signaling_server_handle_message(SignalingServer *server, SoupWebsocketConnection
 
     if (json_parser_load_from_data(parser, msg_data, length, &error)) {
         JsonObject *msg = json_node_get_object(json_parser_get_root(parser));
-        const gchar *msg_type;
 
         if (!json_object_has_member(msg, "msg")) {
             // Invalid message
             goto out;
         }
 
-        msg_type = json_object_get_string_member(msg, "msg");
+        const gchar *msg_type = json_object_get_string_member(msg, "msg");
         if (g_str_equal(msg_type, "answer")) {
             const gchar *answer_sdp = json_object_get_string_member(msg, "sdp");
-            ALOGD("Received answer:\n %s", answer_sdp);
+            // ALOGD("Received answer:\n %s", answer_sdp);
 
             g_signal_emit(server, signals[SIGNAL_SDP_ANSWER], 0, connection, answer_sdp);
         } else if (g_str_equal(msg_type, "candidate")) {
-            JsonObject *candidate;
-
-            candidate = json_object_get_object_member(msg, "candidate");
+            JsonObject *candidate = json_object_get_object_member(msg, "candidate");
 
             g_signal_emit(server, signals[SIGNAL_CANDIDATE], 0, connection,
                           json_object_get_int_member(candidate, "sdpMLineIndex"),
@@ -117,7 +114,7 @@ signaling_server_handle_message(SignalingServer *server, SoupWebsocketConnection
 
 static void
 message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
-    ALOGD("Server received a message");
+    ALOGD("Signaling server received a message");
 
     switch (type) {
         case SOUP_WEBSOCKET_DATA_BINARY: {
@@ -167,7 +164,7 @@ static void signaling_server_add_websocket_connection(SignalingServer *server,
 #if !SOUP_CHECK_VERSION(3, 0, 0)
 static void websocket_cb(SoupServer *server, SoupWebsocketConnection *connection, const char *path,
                          SoupClientContext *client, gpointer user_data) {
-    ALOGD("New connection from %s", soup_client_context_get_host(client));
+    ALOGD("New websocket connection from %s", soup_client_context_get_host(client));
 
     signaling_server_add_websocket_connection(GWD_SIGNALING_SERVER(user_data), connection);
 }
@@ -199,7 +196,6 @@ static void signaling_server_init(SignalingServer *server) {
 static void signaling_server_send_to_websocket_client(SignalingServer *server, ClientId client_id,
                                                       JsonNode *msg) {
     SoupWebsocketConnection *connection = client_id;
-    SoupWebsocketState socket_state;
     g_info("%s", __func__);
 
     if (!g_slist_find(server->websocket_connections, connection)) {
@@ -207,7 +203,7 @@ static void signaling_server_send_to_websocket_client(SignalingServer *server, C
         return;
     }
 
-    socket_state = soup_websocket_connection_get_state(connection);
+    SoupWebsocketState socket_state = soup_websocket_connection_get_state(connection);
 
     if (socket_state == SOUP_WEBSOCKET_STATE_OPEN) {
         gchar *msg_str = json_to_string(msg, TRUE);
@@ -222,12 +218,9 @@ static void signaling_server_send_to_websocket_client(SignalingServer *server, C
 
 void
 signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
-    JsonBuilder *builder;
-    JsonNode *root;
+    // ALOGD("Send offer: %s", sdp);
 
-    ALOGD("Send offer: %s", sdp);
-
-    builder = json_builder_new();
+    JsonBuilder *builder = json_builder_new();
     json_builder_begin_object(builder);
     json_builder_set_member_name(builder, "msg");
     json_builder_add_string_value(builder, "offer");
@@ -236,7 +229,7 @@ signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, con
     json_builder_add_string_value(builder, sdp);
     json_builder_end_object(builder);
 
-    root = json_builder_get_root(builder);
+    JsonNode *root = json_builder_get_root(builder);
 
     signaling_server_send_to_websocket_client(server, client_id, root);
 
@@ -247,12 +240,9 @@ signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, con
 void
 signaling_server_send_candidate(SignalingServer *server, ClientId client_id, guint m_line_index,
                                 const gchar *candidate) {
-    JsonBuilder *builder;
-    JsonNode *root;
+    // ALOGD("Send candidate: %u %s", m_line_index, candidate);
 
-    ALOGD("Send candidate: %u %s", m_line_index, candidate);
-
-    builder = json_builder_new();
+    JsonBuilder *builder = json_builder_new();
     json_builder_begin_object(builder);
     json_builder_set_member_name(builder, "msg");
     json_builder_add_string_value(builder, "candidate");
@@ -266,7 +256,7 @@ signaling_server_send_candidate(SignalingServer *server, ClientId client_id, gui
     json_builder_end_object(builder);
     json_builder_end_object(builder);
 
-    root = json_builder_get_root(builder);
+    JsonNode *root = json_builder_get_root(builder);
 
     signaling_server_send_to_websocket_client(server, client_id, root);
 
