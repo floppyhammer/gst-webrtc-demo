@@ -1,6 +1,5 @@
 #include "gstreamer_pipeline.h"
 
-#include <glib-unix.h>
 #include <gst/gst.h>
 #include <gst/gststructure.h>
 
@@ -49,8 +48,7 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
             g_error("Error: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
-        }
-        break;
+        } break;
         case GST_MESSAGE_WARNING: {
             GError *gerr;
             gchar *debug_msg;
@@ -59,12 +57,10 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
             g_warning("Warning: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
-        }
-        break;
+        } break;
         case GST_MESSAGE_EOS: {
             g_error("Got EOS!!");
-        }
-        break;
+        } break;
         default:
             break;
     }
@@ -158,7 +154,7 @@ static void data_channel_close_cb(GstWebRTCDataChannel *data_channel, struct MyG
 }
 
 static void data_channel_message_data_cb(GstWebRTCDataChannel *data_channel, GBytes *data, struct MyGstData *mgd) {
-    g_print("Received data channel message data, size: %u\n", (uint32_t) g_bytes_get_size(data));
+    g_print("Received data channel message data, size: %u\n", (uint32_t)g_bytes_get_size(data));
 }
 
 static void data_channel_message_string_cb(GstWebRTCDataChannel *data_channel, gchar *str, struct MyGstData *mgd) {
@@ -229,7 +225,7 @@ static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_
         gst_clear_object(&transceiver);
     }
 
-    GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc) on_offer_created, webrtcbin, NULL);
+    GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_offer_created, webrtcbin, NULL);
     g_signal_emit_by_name(webrtcbin, "create-offer", NULL, promise);
 
     //    GST_DEBUG_BIN_TO_DOT_FILE(pipeline_bin, GST_DEBUG_GRAPH_SHOW_ALL, "pipeline_without_webrtcbin");
@@ -337,8 +333,7 @@ static gboolean restart_source(gpointer user_data) {
     gst_element_set_locked_state(rd->src, TRUE);
     GstElement *e = gst_bin_get_by_name(GST_BIN(rd->pipeline), "srtqueue");
     gst_bin_add(GST_BIN(rd->pipeline), rd->src);
-    if (!gst_element_link(rd->src, e))
-        g_assert_not_reached();
+    if (!gst_element_link(rd->src, e)) g_assert_not_reached();
     gst_element_set_locked_state(rd->src, FALSE);
     GstStateChangeReturn ret = gst_element_set_state(rd->src, GST_STATE_PLAYING);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
@@ -390,8 +385,12 @@ void gst_pipeline_play(struct MyGstData *mgd) {
 
     g_signal_connect(signaling_server, "ws-client-connected", G_CALLBACK(webrtc_client_connected_cb), mgd);
 
+#ifdef __linux__
     pthread_t thread;
     pthread_create(&thread, NULL, loop_thread, NULL);
+#else
+    GThread *thread = g_thread_create((GThreadFunc)loop_thread, NULL, TRUE, NULL);
+#endif
 }
 
 void gst_pipeline_stop(struct MyGstData *mgd) {
@@ -408,7 +407,7 @@ void gst_pipeline_stop(struct MyGstData *mgd) {
                                      GST_CLOCK_TIME_NONE,
                                      GST_MESSAGE_EOS | GST_MESSAGE_ERROR);
     //! @todo Should check if we got an error message here or an eos.
-    (void) msg;
+    (void)msg;
 
     // Completely stop the pipeline.
     ALOGD("Setting to NULL");
@@ -453,18 +452,18 @@ void gst_pipeline_create(struct MyGstData **out_gst_data) {
         // "filesrc location=test.mp4 ! decodebin ! " //
         "videotestsrc pattern=ball ! video/x-raw,width=1280,height=720 ! " //
 #ifndef __ANDROID__
-        // "tee name=tp tp. ! queue! videoconvert ! autovideosink tp. ! " //
+    // "tee name=tp tp. ! queue! videoconvert ! autovideosink tp. ! " //
 #endif
-        "queue ! " //
-        "videoconvert ! " //
-        "video/x-raw,format=NV12 ! " //
-        "queue ! " //
-        "x264enc tune=zerolatency ! " //
+        "queue ! "                         //
+        "videoconvert ! "                  //
+        "video/x-raw,format=NV12 ! "       //
+        "queue ! "                         //
+        "x264enc tune=zerolatency ! "      //
         "video/x-h264,profile=baseline ! " //
-        "queue ! " //
-        "h264parse ! " //
-        "rtph264pay config-interval=1 ! " //
-        "application/x-rtp,payload=96 ! " //
+        "queue ! "                         //
+        "h264parse ! "                     //
+        "rtph264pay config-interval=1 ! "  //
+        "application/x-rtp,payload=96 ! "  //
         "tee name=%s allow-not-linked=true",
         MY_TEE_NAME);
 
