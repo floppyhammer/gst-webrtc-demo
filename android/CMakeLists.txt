@@ -61,7 +61,7 @@ if (ANDROID)
     )
     set(LIBSOUP_INCLUDE_DIRS ${GST_ARCH_DIR}/include/libsoup-3.0/)
     set(JSONGLIB_INCLUDE_DIRS ${GST_ARCH_DIR}/include/json-glib-1.0)
-    set(GIO_INCLUDE_DIRS ${GST_ARCH_DIR}/include/glib-2.0/ ${GST_ARCH_DIR}/lib/gio-unix-2.0/)
+    set(GIO_INCLUDE_DIRS ${GST_ARCH_DIR}/lib/gio-unix-2.0/)
 
     add_subdirectory(gstreamer_android)
     add_subdirectory(src)
