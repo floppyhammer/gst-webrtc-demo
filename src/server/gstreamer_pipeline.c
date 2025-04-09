@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #define MY_TEE_NAME "my_tee"
@@ -167,7 +168,7 @@ static void data_channel_close_cb(GstWebRTCDataChannel *data_channel, struct MyG
 }
 
 static void data_channel_message_data_cb(GstWebRTCDataChannel *data_channel, GBytes *data, struct MyGstData *mgd) {
-    ALOGD("data_channel_message_data_cb");
+    g_print("Received data channel message data, size: %u\n", (uint32_t) g_bytes_get_size(data));
 }
 
 static void data_channel_message_string_cb(GstWebRTCDataChannel *data_channel, gchar *str, struct MyGstData *mgd) {
@@ -244,7 +245,7 @@ static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_
     promise = gst_promise_new_with_change_func((GstPromiseChangeFunc) on_offer_created, webrtcbin, NULL);
     g_signal_emit_by_name(webrtcbin, "create-offer", NULL, promise);
 
-    GST_DEBUG_BIN_TO_DOT_FILE(pipeline_bin, GST_DEBUG_GRAPH_SHOW_ALL, "pipeline_with_webrtcbin");
+    GST_DEBUG_BIN_TO_DOT_FILE(pipeline_bin, GST_DEBUG_GRAPH_SHOW_ALL, "pipeline_without_webrtcbin");
 
     g_free(name);
 }
@@ -471,9 +472,10 @@ void gst_pipeline_create(struct MyGstData **out_gst_data) {
     signaling_server = signaling_server_new();
 
     pipeline_str = g_strdup_printf(
-        "videotestsrc ! " //
+        // "filesrc location=test.mp4 ! decodebin ! " //
+        "videotestsrc pattern=ball ! video/x-raw,width=1280,height=720 ! " //
 #ifndef __ANDROID__
-        "tee name=tp tp. ! queue! autovideosink tp. ! " //
+        // "tee name=tp tp. ! queue! videoconvert ! autovideosink tp. ! " //
 #endif
         "queue ! " //
         "videoconvert ! " //
@@ -523,10 +525,6 @@ void gst_pipeline_create(struct MyGstData **out_gst_data) {
 }
 
 inline void gst_pipeline_debug(struct MyGstData *mgd) {
-#ifdef __ANDROID__
-    const gchar *filename = "pipeline";
-#else
-    const gchar *filename = "/sdcard/pipeline";
-#endif
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, filename);
+    ALOGD("Wrote dot file");
+    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
 }

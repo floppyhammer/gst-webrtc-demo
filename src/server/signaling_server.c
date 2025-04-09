@@ -108,14 +108,25 @@ out:
 
 static void message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
     ALOGD("Server received a message");
-    signaling_server_handle_message(GWD_SIGNALING_SERVER(user_data), connection, message);
+
+    switch (type) {
+        case SOUP_WEBSOCKET_DATA_BINARY: {
+            ALOGE("Received unknown binary message, ignoring\n");
+            return;
+        }
+        case SOUP_WEBSOCKET_DATA_TEXT: {
+            signaling_server_handle_message(GWD_SIGNALING_SERVER(user_data), connection, message);
+        }
+        break;
+        default:
+            g_assert_not_reached();
+    }
 }
 
 static void signaling_server_remove_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
-    ALOGD("%s", __func__);
-    ClientId client_id;
+    ALOGD("Removed websocket connection");
 
-    client_id = g_object_get_data(G_OBJECT(connection), "client_id");
+    ClientId client_id = g_object_get_data(G_OBJECT(connection), "client_id");
 
     server->websocket_connections = g_slist_remove(server->websocket_connections, client_id);
 
@@ -129,7 +140,8 @@ static void closed_cb(SoupWebsocketConnection *connection, gpointer user_data) {
 }
 
 static void signaling_server_add_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
-    ALOGD("%s", __func__);
+    ALOGD("Added websocket connection");
+
     g_object_ref(connection);
     server->websocket_connections = g_slist_append(server->websocket_connections, connection);
     g_object_set_data(G_OBJECT(connection), "client_id", connection);

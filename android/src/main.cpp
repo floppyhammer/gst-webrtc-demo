@@ -104,7 +104,7 @@ void android_main(struct android_app *app) {
     setenv("GST_DEBUG", "*:2,webrtc*:9,sctp*:9,dtls*:9,amcvideodec:9", 1);
 
     // Specify dot file dir
-    setenv("GST_DEBUG_DUMP_DOT_DIR", "/storage/sdcard0/", 1);
+    setenv("GST_DEBUG_DUMP_DOT_DIR", "/sdcard", 1);
 
     // Do not do ansi color codes
     setenv("GST_DEBUG_NO_COLOR", "1", 1);
