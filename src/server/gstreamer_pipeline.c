@@ -500,10 +500,11 @@ void gst_pipeline_create(struct MyGstData **out_gst_data) {
     *out_gst_data = mgd;
 }
 
-inline void gst_pipeline_debug(struct MyGstData *mgd) {
+void gst_pipeline_dump(struct MyGstData *mgd) {
 #ifndef __ANDROID__
-    ALOGD("Write dot file");
+    ALOGD("Writing dot file");
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
+    ALOGD("Writing dot file done");
 #else
     ALOGD("Send dot file");
     gchar *data = gst_debug_bin_to_dot_data(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);

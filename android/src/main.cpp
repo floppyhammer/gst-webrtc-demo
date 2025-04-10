@@ -129,7 +129,7 @@ void android_main(struct android_app *app) {
         time_t now_seconds = time(NULL);
         if (!wrote_dot && now_seconds - start_seconds > 5) {
             wrote_dot = true;
-            gst_pipeline_debug(mgd);
+            gst_pipeline_dump(mgd);
         }
     }
 

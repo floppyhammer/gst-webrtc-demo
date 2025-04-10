@@ -12,7 +12,7 @@ void gst_pipeline_stop(struct MyGstData *mgd);
 
 void gst_pipeline_create(struct MyGstData **out_mgd);
 
-void gst_pipeline_debug(struct MyGstData *mgd);
+void gst_pipeline_dump(struct MyGstData *mgd);
 
 #ifdef __cplusplus
 }
