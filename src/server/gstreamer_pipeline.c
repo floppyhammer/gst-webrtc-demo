@@ -385,12 +385,7 @@ void gst_pipeline_play(struct MyGstData *mgd) {
 
     g_signal_connect(signaling_server, "ws-client-connected", G_CALLBACK(webrtc_client_connected_cb), mgd);
 
-#ifdef __linux__
-    pthread_t thread;
-    pthread_create(&thread, NULL, loop_thread, NULL);
-#else
-    GThread *thread = g_thread_create((GThreadFunc)loop_thread, NULL, TRUE, NULL);
-#endif
+    GThread *thread = g_thread_new("loop_thread", (GThreadFunc) loop_thread, NULL);
 }
 
 void gst_pipeline_stop(struct MyGstData *mgd) {
