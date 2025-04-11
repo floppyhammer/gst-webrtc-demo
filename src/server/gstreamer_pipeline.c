@@ -164,6 +164,8 @@ static void data_channel_message_string_cb(GstWebRTCDataChannel *data_channel, g
 static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_id, struct MyGstData *mgd) {
     ALOGD("Client connected, ID: %p", client_id);
 
+    GstStateChangeReturn ret;
+
     GstBin *pipeline_bin = GST_BIN(mgd->pipeline);
 
     gchar *name = g_strdup_printf("webrtcbin_%p", client_id);
@@ -174,7 +176,7 @@ static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_
     gst_bin_add(pipeline_bin, webrtcbin);
     mgd->webrtcbin = webrtcbin;
 
-    GstStateChangeReturn ret = gst_element_set_state(webrtcbin, GST_STATE_READY);
+    ret = gst_element_set_state(webrtcbin, GST_STATE_READY);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
     g_signal_connect(webrtcbin, "on-data-channel", G_CALLBACK(webrtc_on_data_channel_cb), NULL);
@@ -202,7 +204,11 @@ static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_
         }
     }
 
+#ifndef FIX_FIRST_FRAME_DELAY
     ret = gst_element_set_state(webrtcbin, GST_STATE_PLAYING);
+#else
+    ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
+#endif
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
     g_signal_connect(webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
@@ -227,8 +233,6 @@ static void webrtc_client_connected_cb(SignalingServer *server, ClientId client_
 
     GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_offer_created, webrtcbin, NULL);
     g_signal_emit_by_name(webrtcbin, "create-offer", NULL, promise);
-
-    //    GST_DEBUG_BIN_TO_DOT_FILE(pipeline_bin, GST_DEBUG_GRAPH_SHOW_ALL, "pipeline_without_webrtcbin");
 
     g_free(name);
 }
@@ -380,8 +384,10 @@ void gst_pipeline_play(struct MyGstData *mgd) {
 
     // Play the pipeline
     // Note that webrtcbin is not linked yet
+#ifndef FIX_FIRST_FRAME_DELAY
     GstStateChangeReturn ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
+#endif
 
     g_signal_connect(signaling_server, "ws-client-connected", G_CALLBACK(webrtc_client_connected_cb), mgd);
 
