@@ -1,4 +1,4 @@
-add_subdirectory(../../src webrtc_server_common)
+add_subdirectory(../../src webrtc_demo_common)
 
 # Build native_app_glue as a static lib
 add_library(
@@ -24,7 +24,7 @@ target_link_libraries(
         OpenGLES::OpenGLESv3
         ${ANDROID_LIBRARY}
         ${ANDROID_LOG_LIBRARY}
-        webrtc_server_common
+        webrtc_demo_common
         gstreamer_android
 )
 

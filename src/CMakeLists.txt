@@ -1,4 +1,4 @@
-if (UNIX)
+if (UNIX AND NOT ANDROID)
     option(USE_LIBSOUP2 "Use libsoup2.4 instead of libsoup3.0" OFF)
 
     find_package(PkgConfig REQUIRED)
@@ -18,7 +18,7 @@ if (UNIX)
 
     pkg_check_modules(JSONGLIB REQUIRED json-glib-1.0)
     pkg_check_modules(GIO REQUIRED gio-2.0)
-else ()
+elseif (WIN32)
     # To ensure dll linking, add "C:\Program Files\gstreamer\1.0\msvc_x86_64\bin" to your PATH
 
     set(GST_ROOT "C:\\Program Files\\gstreamer\\1.0\\msvc_x86_64")

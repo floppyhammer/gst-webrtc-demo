@@ -19,8 +19,8 @@
 #include <memory>
 #include <thread>
 
+#include "../../src/server/server_pipeline.h"
 #include "../../src/utils/logger.h"
-#include "../../src/server/gstreamer_pipeline.h"
 
 namespace {
 
@@ -101,7 +101,7 @@ void android_main(struct android_app *app) {
     // setenv("GST_DEBUG", "*:3", 1);
     // setenv("GST_DEBUG", "*ssl*:9,*tls*:9,*webrtc*:9", 1);
     // setenv("GST_DEBUG", "GST_CAPS:5", 1);
-//    setenv("GST_DEBUG", "*:2,webrtc*:9,sctp*:2,dtls*:2,amcvideodec:9", 1);
+    //    setenv("GST_DEBUG", "*:2,webrtc*:9,sctp*:2,dtls*:2,amcvideodec:9", 1);
 
     // Specify dot file dir
     setenv("GST_DEBUG_DUMP_DOT_DIR", "/sdcard", 1);
@@ -115,9 +115,9 @@ void android_main(struct android_app *app) {
 
     //////////////////////////////////////////
     struct MyGstData *mgd = NULL;
-    gst_pipeline_create(&mgd);
+    server_pipeline_create(&mgd);
 
-    gst_pipeline_play(mgd);
+    server_pipeline_play(mgd);
 
     time_t start_seconds = time(NULL);
     bool wrote_dot = false;
@@ -129,13 +129,13 @@ void android_main(struct android_app *app) {
         time_t now_seconds = time(NULL);
         if (!wrote_dot && now_seconds - start_seconds > 5) {
             wrote_dot = true;
-            gst_pipeline_dump(mgd);
+            server_pipeline_dump(mgd);
         }
     }
 
     ALOGD("DEBUG: Exited main loop, cleaning up");
 
-    gst_pipeline_stop(mgd);
+    server_pipeline_stop(mgd);
     //////////////////////////////////////////
 
     (*app->activity->vm).DetachCurrentThread();
