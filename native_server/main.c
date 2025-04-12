@@ -1,7 +1,7 @@
 #include <stdbool.h>
+#include <time.h>
 
-#include "../src/server/gstreamer_pipeline.h"
-#include "../src/server/signaling_server.h"
+#include "../src/server/server_pipeline.h"
 #include "../src/utils/logger.h"
 #include "stdio.h"
 
@@ -19,9 +19,9 @@ int main(int argc, char *argv[]) {
 #endif
 
     struct MyGstData *mgd = NULL;
-    gst_pipeline_create(&mgd);
+    server_pipeline_create(&mgd);
 
-    gst_pipeline_play(mgd);
+    server_pipeline_play(mgd);
 
     time_t start_seconds = time(NULL);
     bool wrote_dot = false;
@@ -31,11 +31,11 @@ int main(int argc, char *argv[]) {
         time_t now_seconds = time(NULL);
         if (!wrote_dot && now_seconds - start_seconds > 5) {
             wrote_dot = true;
-            gst_pipeline_dump(mgd);
+            server_pipeline_dump(mgd);
         }
     }
 
     ALOGD("Exited main loop, cleaning up\n");
 
-    gst_pipeline_stop(mgd);
+    server_pipeline_stop(mgd);
 }

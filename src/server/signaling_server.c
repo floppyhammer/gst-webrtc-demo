@@ -21,7 +21,7 @@
 
 #if SOUP_CHECK_VERSION(3, 0, 0)
 
-#include <libsoup/soup-server-message.h>
+    #include <libsoup/soup-server-message.h>
 
 #endif
 
@@ -52,8 +52,12 @@ SignalingServer *signaling_server_new() {
 }
 
 #if !SOUP_CHECK_VERSION(3, 0, 0)
-static void http_cb(SoupServer *server, SoupMessage *msg, const char *path, GHashTable *query,
-                    SoupClientContext *client, gpointer user_data) {
+static void http_cb(SoupServer *server,
+                    SoupMessage *msg,
+                    const char *path,
+                    GHashTable *query,
+                    SoupClientContext *client,
+                    gpointer user_data) {
     // We're not serving any HTTP traffic - if somebody (erroneously) submits an HTTP request, tell them to get
     // lost.
     ALOGE("Got an erroneous HTTP request from %s", soup_client_context_get_host(client));
@@ -61,10 +65,10 @@ static void http_cb(SoupServer *server, SoupMessage *msg, const char *path, GHas
 }
 #else
 
-static void http_cb(SoupServer *server, //
+static void http_cb(SoupServer *server,     //
                     SoupServerMessage *msg, //
-                    const char *path, //
-                    GHashTable *query, //
+                    const char *path,       //
+                    GHashTable *query,      //
                     gpointer user_data) {
     // We're not serving any HTTP traffic - if somebody (erroneously) submits an HTTP request, tell them to get
     // lost.
@@ -74,9 +78,9 @@ static void http_cb(SoupServer *server, //
 
 #endif
 
-static void
-signaling_server_handle_message(SignalingServer *server, SoupWebsocketConnection *connection,
-                                GBytes *message) {
+static void signaling_server_handle_message(SignalingServer *server,
+                                            SoupWebsocketConnection *connection,
+                                            GBytes *message) {
     gsize length = 0;
     const gchar *msg_data = g_bytes_get_data(message, &length);
     JsonParser *parser = json_parser_new();
@@ -99,7 +103,10 @@ signaling_server_handle_message(SignalingServer *server, SoupWebsocketConnection
         } else if (g_str_equal(msg_type, "candidate")) {
             JsonObject *candidate = json_object_get_object_member(msg, "candidate");
 
-            g_signal_emit(server, signals[SIGNAL_CANDIDATE], 0, connection,
+            g_signal_emit(server,
+                          signals[SIGNAL_CANDIDATE],
+                          0,
+                          connection,
                           json_object_get_int_member(candidate, "sdpMLineIndex"),
                           json_object_get_string_member(candidate, "candidate"));
         }
@@ -108,12 +115,11 @@ signaling_server_handle_message(SignalingServer *server, SoupWebsocketConnection
         g_clear_error(&error);
     }
 
-    out:
+out:
     g_object_unref(parser);
 }
 
-static void
-message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
+static void message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
     ALOGD("Signaling server received a message");
 
     switch (type) {
@@ -123,15 +129,13 @@ message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpoi
         }
         case SOUP_WEBSOCKET_DATA_TEXT: {
             signaling_server_handle_message(GWD_SIGNALING_SERVER(user_data), connection, message);
-        }
-            break;
+        } break;
         default:
             g_assert_not_reached();
     }
 }
 
-static void signaling_server_remove_websocket_connection(SignalingServer *server,
-                                                         SoupWebsocketConnection *connection) {
+static void signaling_server_remove_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
     ALOGD("Removed websocket connection");
 
     ClientId client_id = g_object_get_data(G_OBJECT(connection), "client_id");
@@ -147,31 +151,36 @@ static void closed_cb(SoupWebsocketConnection *connection, gpointer user_data) {
     signaling_server_remove_websocket_connection(GWD_SIGNALING_SERVER(user_data), connection);
 }
 
-static void signaling_server_add_websocket_connection(SignalingServer *server,
-                                                      SoupWebsocketConnection *connection) {
+static void signaling_server_add_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
     ALOGD("Added websocket connection");
 
     g_object_ref(connection);
     server->websocket_connections = g_slist_append(server->websocket_connections, connection);
     g_object_set_data(G_OBJECT(connection), "client_id", connection);
 
-    g_signal_connect(connection, "message", (GCallback) message_cb, server);
-    g_signal_connect(connection, "closed", (GCallback) closed_cb, server);
+    g_signal_connect(connection, "message", (GCallback)message_cb, server);
+    g_signal_connect(connection, "closed", (GCallback)closed_cb, server);
 
     g_signal_emit(server, signals[SIGNAL_WS_CLIENT_CONNECTED], 0, connection);
 }
 
 #if !SOUP_CHECK_VERSION(3, 0, 0)
-static void websocket_cb(SoupServer *server, SoupWebsocketConnection *connection, const char *path,
-                         SoupClientContext *client, gpointer user_data) {
+static void websocket_cb(SoupServer *server,
+                         SoupWebsocketConnection *connection,
+                         const char *path,
+                         SoupClientContext *client,
+                         gpointer user_data) {
     ALOGD("New websocket connection from %s", soup_client_context_get_host(client));
 
     signaling_server_add_websocket_connection(GWD_SIGNALING_SERVER(user_data), connection);
 }
 #else
 
-static void websocket_cb(SoupServer *server, SoupServerMessage *msg, const char *path,
-                         SoupWebsocketConnection *connection, gpointer user_data) {
+static void websocket_cb(SoupServer *server,
+                         SoupServerMessage *msg,
+                         const char *path,
+                         SoupWebsocketConnection *connection,
+                         gpointer user_data) {
     ALOGD("New connection from somewhere");
 
     signaling_server_add_websocket_connection(GWD_SIGNALING_SERVER(user_data), connection);
@@ -186,15 +195,13 @@ static void signaling_server_init(SignalingServer *server) {
     g_assert_no_error(error);
 
     soup_server_add_handler(server->soup_server, NULL, http_cb, server, NULL);
-    soup_server_add_websocket_handler(server->soup_server, "/ws", NULL, NULL, websocket_cb, server,
-                                      NULL);
+    soup_server_add_websocket_handler(server->soup_server, "/ws", NULL, NULL, websocket_cb, server, NULL);
 
     soup_server_listen_all(server->soup_server, 8080, 0, &error);
     g_assert_no_error(error);
 }
 
-static void signaling_server_send_to_websocket_client(SignalingServer *server, ClientId client_id,
-                                                      JsonNode *msg) {
+static void signaling_server_send_to_websocket_client(SignalingServer *server, ClientId client_id, JsonNode *msg) {
     SoupWebsocketConnection *connection = client_id;
     g_info("%s", __func__);
 
@@ -216,8 +223,7 @@ static void signaling_server_send_to_websocket_client(SignalingServer *server, C
     }
 }
 
-void
-signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
+void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
     // ALOGD("Send offer: %s", sdp);
 
     JsonBuilder *builder = json_builder_new();
@@ -237,9 +243,10 @@ signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, con
     g_object_unref(builder);
 }
 
-void
-signaling_server_send_candidate(SignalingServer *server, ClientId client_id, guint m_line_index,
-                                const gchar *candidate) {
+void signaling_server_send_candidate(SignalingServer *server,
+                                     ClientId client_id,
+                                     guint m_line_index,
+                                     const gchar *candidate) {
     // ALOGD("Send candidate: %u %s", m_line_index, candidate);
 
     JsonBuilder *builder = json_builder_new();
@@ -277,23 +284,50 @@ static void signaling_server_class_init(SignalingServerClass *klass) {
 
     gobject_class->dispose = signaling_server_dispose;
 
-    signals[SIGNAL_WS_CLIENT_CONNECTED] =
-            g_signal_new("ws-client-connected", G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_LAST, 0,
-                         NULL, NULL, NULL,
-                         G_TYPE_NONE, 1, G_TYPE_POINTER);
+    signals[SIGNAL_WS_CLIENT_CONNECTED] = g_signal_new("ws-client-connected",
+                                                       G_OBJECT_CLASS_TYPE(klass),
+                                                       G_SIGNAL_RUN_LAST,
+                                                       0,
+                                                       NULL,
+                                                       NULL,
+                                                       NULL,
+                                                       G_TYPE_NONE,
+                                                       1,
+                                                       G_TYPE_POINTER);
 
-    signals[SIGNAL_WS_CLIENT_DISCONNECTED] =
-            g_signal_new("ws-client-disconnected", G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_LAST, 0,
-                         NULL, NULL, NULL,
-                         G_TYPE_NONE, 1, G_TYPE_POINTER);
+    signals[SIGNAL_WS_CLIENT_DISCONNECTED] = g_signal_new("ws-client-disconnected",
+                                                          G_OBJECT_CLASS_TYPE(klass),
+                                                          G_SIGNAL_RUN_LAST,
+                                                          0,
+                                                          NULL,
+                                                          NULL,
+                                                          NULL,
+                                                          G_TYPE_NONE,
+                                                          1,
+                                                          G_TYPE_POINTER);
 
-    signals[SIGNAL_SDP_ANSWER] = g_signal_new("sdp-answer", G_OBJECT_CLASS_TYPE(klass),
-                                              G_SIGNAL_RUN_LAST, 0, NULL,
-                                              NULL, NULL, G_TYPE_NONE, 2, G_TYPE_POINTER,
+    signals[SIGNAL_SDP_ANSWER] = g_signal_new("sdp-answer",
+                                              G_OBJECT_CLASS_TYPE(klass),
+                                              G_SIGNAL_RUN_LAST,
+                                              0,
+                                              NULL,
+                                              NULL,
+                                              NULL,
+                                              G_TYPE_NONE,
+                                              2,
+                                              G_TYPE_POINTER,
                                               G_TYPE_STRING);
 
-    signals[SIGNAL_CANDIDATE] = g_signal_new("candidate", G_OBJECT_CLASS_TYPE(klass),
-                                             G_SIGNAL_RUN_LAST, 0, NULL, NULL,
-                                             NULL, G_TYPE_NONE, 3, G_TYPE_POINTER, G_TYPE_UINT,
+    signals[SIGNAL_CANDIDATE] = g_signal_new("candidate",
+                                             G_OBJECT_CLASS_TYPE(klass),
+                                             G_SIGNAL_RUN_LAST,
+                                             0,
+                                             NULL,
+                                             NULL,
+                                             NULL,
+                                             G_TYPE_NONE,
+                                             3,
+                                             G_TYPE_POINTER,
+                                             G_TYPE_UINT,
                                              G_TYPE_STRING);
 }

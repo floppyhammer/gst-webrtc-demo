@@ -42,10 +42,10 @@ else ()
     set(GIO_LIBRARIES "${GST_LIB_ROOT}\\gio-2.0.lib")
 endif ()
 
-add_library(webrtc_server_common server/gstreamer_pipeline.c server/signaling_server.c)
+add_library(webrtc_demo_common server/server_pipeline.c server/signaling_server.c client/client_pipeline.c)
 
 target_link_libraries(
-        webrtc_server_common
+        webrtc_demo_common
         PRIVATE
         ${GST_LIBRARIES}
         ${GST_SDP_LIBRARIES}
@@ -57,7 +57,7 @@ target_link_libraries(
 )
 
 target_include_directories(
-        webrtc_server_common
+        webrtc_demo_common
         PRIVATE
         ${GST_INCLUDE_DIRS}
         ${LIBSOUP_INCLUDE_DIRS}
