@@ -444,7 +444,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // Setup pipeline
     gchar* pipeline_str = g_strdup_printf(
         // "filesrc location=test.mp4 ! decodebin ! " //
-        "videotestsrc pattern=ball ! video/x-raw,width=1280,height=720 ! " //
+        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=1280,height=720 ! " // is-live=true is to fix first frame delay
 #ifndef __ANDROID__
 // "tee name=tp tp. ! queue! videoconvert ! autovideosink tp. ! " //
 #endif
