@@ -473,8 +473,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
 #endif
         gst_debug_set_default_threshold(GST_LEVEL_WARNING);
-        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_LOG);
-        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_LOG);
+        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_TRACE);
+        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }
 
     GstElement* pipeline = gst_parse_launch(pipeline_str, &error);
