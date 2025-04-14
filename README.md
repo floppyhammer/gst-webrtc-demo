@@ -1,6 +1,6 @@
-# GStreamer WebRTC Server
+# GStreamer WebRTC Demo
 
-This is a test server on Android/Linux. See the compatible [client](https://github.com/floppyhammer/gst-webrtc-client).
+This is a demo showing how to use GStreamer WebRTC on Android/Linux/Windows.
 
 ## Get Dependencies (Linux)
 
