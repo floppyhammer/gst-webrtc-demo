@@ -80,15 +80,23 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
     if (pipeline == NULL) return;
 
     GstElement* tee = gst_bin_get_by_name(GST_BIN(pipeline), MY_TEE_NAME);
+    GstPad* src_pad = gst_element_request_pad_simple(tee, "src_%u");
 
-    GstPad* srcpad = gst_element_request_pad_simple(tee, "src_%u");
-    GstPad* sinkpad = gst_element_request_pad_simple(webrtcbin, "sink_0");
+    GstCaps* caps = gst_caps_from_string(
+        "application/x-rtp, "
+        "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,profile-level-id=("
+        "string)42e01f");
 
-    GstPadLinkReturn ret = gst_pad_link(srcpad, sinkpad);
+    GstPadTemplate* pad_template;
+    pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
+    GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_0", caps);
+
+    GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
     g_assert(ret == GST_PAD_LINK_OK);
 
-    gst_object_unref(srcpad);
-    gst_object_unref(sinkpad);
+    gst_caps_unref(caps);
+    gst_object_unref(src_pad);
+    gst_object_unref(sink_pad);
     gst_object_unref(tee);
     gst_object_unref(pipeline);
 
@@ -213,23 +221,23 @@ static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_
 
     g_signal_connect(webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
 
-    // Add transceiver
-    {
-        GstWebRTCRTPTransceiver* transceiver;
-
-        GstCaps* caps = gst_caps_from_string(
-            "application/x-rtp, "
-            "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,profile-level-id=("
-            "string)42e01f");
-        g_signal_emit_by_name(webrtcbin,
-                              "add-transceiver",
-                              GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY,
-                              caps,
-                              &transceiver);
-
-        gst_caps_unref(caps);
-        gst_clear_object(&transceiver);
-    }
+    //    // Add transceiver
+    //    {
+    //        GstWebRTCRTPTransceiver* transceiver;
+    //
+    //        GstCaps* caps = gst_caps_from_string(
+    //            "application/x-rtp, "
+    //            "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,profile-level-id=("
+    //            "string)42e01f");
+    //        g_signal_emit_by_name(webrtcbin,
+    //                              "add-transceiver",
+    //                              GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY,
+    //                              caps,
+    //                              &transceiver);
+    //
+    //        gst_caps_unref(caps);
+    //        gst_clear_object(&transceiver);
+    //    }
 
     GstPromise* promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_offer_created, webrtcbin, NULL);
     g_signal_emit_by_name(webrtcbin, "create-offer", NULL, promise);
@@ -444,7 +452,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // Setup pipeline
     gchar* pipeline_str = g_strdup_printf(
         // "filesrc location=test.mp4 ! decodebin ! " //
-        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=1280,height=720 ! " // is-live=true is to fix first frame delay
+        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=1280,height=720 ! " // is-live=true is to fix first
+                                                                                        // frame delay
 #ifndef __ANDROID__
 // "tee name=tp tp. ! queue! videoconvert ! autovideosink tp. ! " //
 #endif
@@ -473,8 +482,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
 #endif
         gst_debug_set_default_threshold(GST_LEVEL_WARNING);
-        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_TRACE);
-        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
+        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
+        //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }
 
     GstElement* pipeline = gst_parse_launch(pipeline_str, &error);
