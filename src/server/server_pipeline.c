@@ -436,7 +436,13 @@ void gstAndroidLog(GstDebugCategory* category,
                    GstDebugMessage* message,
                    gpointer data) {
     if (level <= gst_debug_category_get_threshold(category)) {
-        __android_log_print(ANDROID_LOG_DEBUG, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
+        if (level == GST_LEVEL_ERROR) {
+            __android_log_print(ANDROID_LOG_ERROR, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
+        } else if (level == GST_LEVEL_WARNING) {
+            __android_log_print(ANDROID_LOG_WARN, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
+        } else {
+            __android_log_print(ANDROID_LOG_DEBUG, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
+        }
     }
 }
 
