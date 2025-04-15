@@ -1,6 +1,6 @@
-if (UNIX AND NOT ANDROID)
-    option(USE_LIBSOUP2 "Use libsoup2.4 instead of libsoup3.0" OFF)
+option(USE_LIBSOUP2 "Use libsoup-2.4 instead of libsoup-3.0" OFF)
 
+if (UNIX AND NOT ANDROID)
     find_package(PkgConfig REQUIRED)
 
     pkg_check_modules(GLIB REQUIRED glib-2.0)
