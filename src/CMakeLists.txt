@@ -20,8 +20,10 @@ if (UNIX AND NOT ANDROID)
     pkg_check_modules(GIO REQUIRED gio-2.0)
 elseif (WIN32)
     # To ensure dll linking, add "C:\Program Files\gstreamer\1.0\msvc_x86_64\bin" to your PATH
-
     set(GST_ROOT "C:\\Program Files\\gstreamer\\1.0\\msvc_x86_64")
+    # For older versions of gstreamer
+#    set(GST_ROOT "C:\\gstreamer\\1.0\\msvc_x86_64")
+
     set(GST_LIB_ROOT "${GST_ROOT}\\lib")
 
     set(GST_INCLUDE_DIRS "${GST_ROOT}\\include\\gstreamer-1.0")
@@ -35,8 +37,13 @@ elseif (WIN32)
     set(JSONGLIB_INCLUDE_DIRS "${GST_ROOT}\\include\\json-glib-1.0")
     set(JSONGLIB_LIBRARIES "${GST_LIB_ROOT}\\json-glib-1.0.lib")
 
-    set(LIBSOUP_INCLUDE_DIRS "${GST_ROOT}\\include\\libsoup-3.0")
-    set(LIBSOUP_LIBRARIES "${GST_LIB_ROOT}\\soup-3.0.lib")
+    if (USE_LIBSOUP2)
+        set(LIBSOUP_INCLUDE_DIRS "${GST_ROOT}\\include\\libsoup-2.4")
+        set(LIBSOUP_LIBRARIES "${GST_LIB_ROOT}\\soup-2.4.lib")
+    else ()
+        set(LIBSOUP_INCLUDE_DIRS "${GST_ROOT}\\include\\libsoup-3.0")
+        set(LIBSOUP_LIBRARIES "${GST_LIB_ROOT}\\soup-3.0.lib")
+    endif ()
 
     set(GIO_INCLUDE_DIRS "${GST_ROOT}\\include\\gio-win32-2.0")
     set(GIO_LIBRARIES "${GST_LIB_ROOT}\\gio-2.0.lib")
