@@ -94,6 +94,15 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
     GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
     g_assert(ret == GST_PAD_LINK_OK);
 
+    {
+        GArray* transceivers;
+        g_signal_emit_by_name(webrtcbin, "get-transceivers", &transceivers);
+        g_assert(transceivers != NULL && transceivers->len == 1);
+        GstWebRTCRTPTransceiver* trans = g_array_index(transceivers, GstWebRTCRTPTransceiver*, 0);
+        g_object_set(trans, "direction", GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY, NULL);
+        g_array_unref(transceivers);
+    }
+
     gst_caps_unref(caps);
     gst_object_unref(src_pad);
     gst_object_unref(sink_pad);
