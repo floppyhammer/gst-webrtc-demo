@@ -82,13 +82,13 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
     GstElement* tee = gst_bin_get_by_name(GST_BIN(pipeline), MY_TEE_NAME);
     GstPad* src_pad = gst_element_request_pad_simple(tee, "src_%u");
 
+    GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
+
     GstCaps* caps = gst_caps_from_string(
         "application/x-rtp, "
         "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,profile-level-id=("
         "string)42e01f");
 
-    GstPadTemplate* pad_template;
-    pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
     GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_0", caps);
 
     GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
@@ -126,8 +126,6 @@ static void on_offer_created(GstPromise* promise, GstElement* webrtcbin) {
     g_free(sdp);
 
     gst_webrtc_session_description_free(offer);
-
-    link_webrtc_to_tee(webrtcbin);
 }
 
 static void webrtc_on_data_channel_cb(GstElement* webrtcbin, GObject* data_channel, struct MyGstData* mgd) {
@@ -221,35 +219,19 @@ static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_
         }
     }
 
-#ifndef FIX_FIRST_FRAME_DELAY
+    g_signal_connect(webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
+
+    link_webrtc_to_tee(webrtcbin);
+
+    GstPromise* promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_offer_created, webrtcbin, NULL);
+    g_signal_emit_by_name(webrtcbin, "create-offer", NULL, promise);
+
+#ifndef DISABLE_DYNAMIC_PIPELINE
     ret = gst_element_set_state(webrtcbin, GST_STATE_PLAYING);
 #else
     ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
 #endif
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
-
-    g_signal_connect(webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
-
-    //    // Add transceiver
-    //    {
-    //        GstWebRTCRTPTransceiver* transceiver;
-    //
-    //        GstCaps* caps = gst_caps_from_string(
-    //            "application/x-rtp, "
-    //            "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,profile-level-id=("
-    //            "string)42e01f");
-    //        g_signal_emit_by_name(webrtcbin,
-    //                              "add-transceiver",
-    //                              GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY,
-    //                              caps,
-    //                              &transceiver);
-    //
-    //        gst_caps_unref(caps);
-    //        gst_clear_object(&transceiver);
-    //    }
-
-    GstPromise* promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_offer_created, webrtcbin, NULL);
-    g_signal_emit_by_name(webrtcbin, "create-offer", NULL, promise);
 
     g_free(name);
 }
@@ -401,7 +383,7 @@ void server_pipeline_play(struct MyGstData* mgd) {
 
 // Play the pipeline
 // Note that webrtcbin is not linked yet
-#ifndef FIX_FIRST_FRAME_DELAY
+#ifndef DISABLE_DYNAMIC_PIPELINE
     GstStateChangeReturn ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 #endif
