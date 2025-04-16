@@ -21,7 +21,9 @@ sudo apt install libeigen3-dev \
     libx11-dev \
     libx11-xcb-dev \
     libxxf86vm-dev \
-    pkg-config
+    pkg-config \
+    libjson-glib-dev \
+    gstreamer1.0-libav
 ```
 
 Plus some version of libsoup. Run the following, and see if it shows
