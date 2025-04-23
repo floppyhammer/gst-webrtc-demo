@@ -11,8 +11,6 @@ import android.os.PersistableBundle
 import android.util.Log
 
 class StreamingActivity : NativeActivity() {
-//    private var mView: GLSurfaceView? = null
-
     override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
 
         System.loadLibrary("gst_webrtc_client")
@@ -20,10 +18,6 @@ class StreamingActivity : NativeActivity() {
 
         System.loadLibrary("gst_webrtc_standalone_client")
         Log.i("GstWebrtcClient", "StreamingActivity: loaded gst_webrtc_standalone_client")
-
-//        mView = GLSurfaceView(application)
-//
-//        setContentView(mView)
 
         super.onCreate(savedInstanceState, persistentState)
     }

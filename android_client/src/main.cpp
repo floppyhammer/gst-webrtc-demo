@@ -53,7 +53,15 @@ namespace {
 
     std::unique_ptr<EglData> initialEglData;
 
+    EmStreamClient *stream_client{};
+
     em_state _state = {};
+
+    void connected_cb(EmConnection *connection, struct em_state *state) {
+        ALOGI("%s: Got signal that we are connected!", __FUNCTION__);
+
+        state->connected = true;
+    }
 
     void onAppCmd(struct android_app *app, int32_t cmd) {
         switch (cmd) {
@@ -85,6 +93,17 @@ namespace {
                 eglQuerySurface(initialEglData->display, initialEglData->surface, EGL_HEIGHT,
                                 &_state.height);
 
+                stream_client = em_stream_client_new();
+
+                _state.connection = g_object_ref_sink(em_connection_new_localhost());
+
+                g_signal_connect(_state.connection, "connected", G_CALLBACK(connected_cb), &_state);
+
+                em_connection_connect(_state.connection);
+
+                ALOGI("%s: starting stream client mainloop thread", __FUNCTION__);
+                em_stream_client_spawn_thread(stream_client, _state.connection);
+
                 try {
                     ALOGI("%s: Setup renderer...", __FUNCTION__);
                     renderer = std::make_unique<Renderer>();
@@ -95,8 +114,6 @@ namespace {
                     abort();
                 }
             }
-
-
                 break;
             case APP_CMD_TERM_WINDOW:
                 ALOGI("APP_CMD_TERM_WINDOW - shutting down connection");
@@ -136,11 +153,6 @@ namespace {
         return true;
     }
 
-    void connected_cb(EmConnection *connection, struct em_state *state) {
-        ALOGI("%s: Got signal that we are connected!", __FUNCTION__);
-
-        state->connected = true;
-    }
 
 } // namespace
 
@@ -194,7 +206,6 @@ void android_main(struct android_app *app) {
     (*app->activity->vm).AttachCurrentThread(&env, NULL);
     app->onAppCmd = onAppCmd;
 
-
     //
     // Start of remote-rendering-specific code
     //
@@ -212,18 +223,6 @@ void android_main(struct android_app *app) {
         //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }
 
-    EmStreamClient *stream_client = em_stream_client_new();
-
-
-    _state.connection = g_object_ref_sink(em_connection_new_localhost());
-
-    g_signal_connect(_state.connection, "connected", G_CALLBACK(connected_cb), &_state);
-
-    em_connection_connect(_state.connection);
-
-    ALOGI("%s: starting stream client mainloop thread", __FUNCTION__);
-    em_stream_client_spawn_thread(stream_client, _state.connection);
-
     //
     // End of remote-rendering-specific setup, into main loop
     //
@@ -231,11 +230,11 @@ void android_main(struct android_app *app) {
     // Main rendering loop.
     ALOGI("DEBUG: Starting main loop");
     while (!app->destroyRequested) {
-        if (poll_events(app, _state)) {
+        if (!initialEglData || !renderer || !stream_client) {
+            continue;
         }
 
-        if (!initialEglData || !renderer) {
-            continue;
+        if (poll_events(app, _state)) {
         }
 
         initialEglData->makeCurrent();
