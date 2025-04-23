@@ -40,88 +40,89 @@
 
 namespace {
 
-    struct em_state {
-        bool connected;
+struct em_state {
+    bool connected;
 
-        int32_t width;
-        int32_t height;
+    int32_t width;
+    int32_t height;
 
-        EmConnection *connection;
-    };
+    EmConnection *connection;
+};
 
-    std::unique_ptr<Renderer> renderer;
+std::unique_ptr<Renderer> renderer;
 
-    std::unique_ptr<EglData> initialEglData;
+std::unique_ptr<EglData> initialEglData;
 
-    EmStreamClient *stream_client{};
+EmStreamClient *stream_client{};
 
-    em_state _state = {};
+em_state _state = {};
 
-    void connected_cb(EmConnection *connection, struct em_state *state) {
-        ALOGI("%s: Got signal that we are connected!", __FUNCTION__);
+void connected_cb(EmConnection *connection, struct em_state *state) {
+    ALOGI("%s: Got signal that we are connected!", __FUNCTION__);
 
-        state->connected = true;
-    }
+    state->connected = true;
+}
 
-    void onAppCmd(struct android_app *app, int32_t cmd) {
-        switch (cmd) {
-            case APP_CMD_START:
-                ALOGI("APP_CMD_START");
-                break;
-            case APP_CMD_RESUME:
-                ALOGI("APP_CMD_RESUME");
-                break;
-            case APP_CMD_PAUSE:
-                ALOGI("APP_CMD_PAUSE");
-                break;
-            case APP_CMD_STOP:
-                ALOGE("APP_CMD_STOP - shutting down connection");
-                em_connection_disconnect(_state.connection);
-                _state.connected = false;
-                break;
-            case APP_CMD_DESTROY:
-                ALOGI("APP_CMD_DESTROY");
-                break;
-            case APP_CMD_INIT_WINDOW: {
-                ALOGI("APP_CMD_INIT_WINDOW");
+void onAppCmd(struct android_app *app, int32_t cmd) {
+    switch (cmd) {
+        case APP_CMD_START:
+            ALOGI("APP_CMD_START");
+            break;
+        case APP_CMD_RESUME:
+            ALOGI("APP_CMD_RESUME");
+            break;
+        case APP_CMD_PAUSE:
+            ALOGI("APP_CMD_PAUSE");
+            break;
+        case APP_CMD_STOP:
+            ALOGE("APP_CMD_STOP - shutting down connection");
+            em_connection_disconnect(_state.connection);
+            _state.connected = false;
+            break;
+        case APP_CMD_DESTROY:
+            ALOGI("APP_CMD_DESTROY");
+            break;
+        case APP_CMD_INIT_WINDOW: {
+            ALOGI("APP_CMD_INIT_WINDOW");
 
-                initialEglData = std::make_unique<EglData>(app->window);
-                initialEglData->makeCurrent();
+            initialEglData = std::make_unique<EglData>(app->window);
+            initialEglData->makeCurrent();
 
-                eglQuerySurface(initialEglData->display, initialEglData->surface, EGL_WIDTH,
-                                &_state.width);
-                eglQuerySurface(initialEglData->display, initialEglData->surface, EGL_HEIGHT,
-                                &_state.height);
+            eglQuerySurface(initialEglData->display, initialEglData->surface, EGL_WIDTH, &_state.width);
+            eglQuerySurface(initialEglData->display, initialEglData->surface, EGL_HEIGHT, &_state.height);
 
-                stream_client = em_stream_client_new();
+            stream_client = em_stream_client_new();
+            em_stream_client_set_egl_context(stream_client,
+                                             initialEglData->context,
+                                             initialEglData->display,
+                                             initialEglData->surface);
 
-                _state.connection = g_object_ref_sink(em_connection_new_localhost());
+            _state.connection = g_object_ref_sink(em_connection_new_localhost());
 
-                g_signal_connect(_state.connection, "connected", G_CALLBACK(connected_cb), &_state);
+            g_signal_connect(_state.connection, "connected", G_CALLBACK(connected_cb), &_state);
 
-                em_connection_connect(_state.connection);
+            em_connection_connect(_state.connection);
 
-                ALOGI("%s: starting stream client mainloop thread", __FUNCTION__);
-                em_stream_client_spawn_thread(stream_client, _state.connection);
+            ALOGI("%s: starting stream client mainloop thread", __FUNCTION__);
+            em_stream_client_spawn_thread(stream_client, _state.connection);
 
-                try {
-                    ALOGI("%s: Setup renderer...", __FUNCTION__);
-                    renderer = std::make_unique<Renderer>();
-                    renderer->setupRender();
-                } catch (std::exception const &e) {
-                    ALOGE("%s: Caught exception setting up renderer: %s", __FUNCTION__, e.what());
-                    renderer->reset();
-                    abort();
-                }
+            try {
+                ALOGI("%s: Setup renderer...", __FUNCTION__);
+                renderer = std::make_unique<Renderer>();
+                renderer->setupRender();
+            } catch (std::exception const &e) {
+                ALOGE("%s: Caught exception setting up renderer: %s", __FUNCTION__, e.what());
+                renderer->reset();
+                abort();
             }
-                break;
-            case APP_CMD_TERM_WINDOW:
-                ALOGI("APP_CMD_TERM_WINDOW - shutting down connection");
-                em_connection_disconnect(_state.connection);
-                _state.connected = false;
-                break;
-        }
+        } break;
+        case APP_CMD_TERM_WINDOW:
+            ALOGI("APP_CMD_TERM_WINDOW - shutting down connection");
+            em_connection_disconnect(_state.connection);
+            _state.connected = false;
+            break;
     }
+}
 
 /**
  * Poll for Android and OpenXR events, and handle them
@@ -130,35 +131,34 @@ namespace {
  *
  * @return true if we should go to the render code
  */
-    bool poll_events(struct android_app *app) {
-        // Poll Android events
-        for (;;) {
-            int events;
-            struct android_poll_source *source;
-            bool wait = !app->window || app->activityState != APP_CMD_RESUME;
-            int timeout = wait ? -1 : 0;
-            if (ALooper_pollAll(timeout, NULL, &events, (void **) &source) >= 0) {
-                if (source) {
-                    source->process(app, source);
-                }
+bool poll_events(struct android_app *app) {
+    // Poll Android events
+    for (;;) {
+        int events;
+        struct android_poll_source *source;
+        bool wait = !app->window || app->activityState != APP_CMD_RESUME;
+        int timeout = wait ? -1 : 0;
+        if (ALooper_pollAll(timeout, NULL, &events, (void **)&source) >= 0) {
+            if (source) {
+                source->process(app, source);
+            }
 
-                if (timeout == 0 && (!app->window || app->activityState != APP_CMD_RESUME)) {
-                    break;
-                }
-            } else {
+            if (timeout == 0 && (!app->window || app->activityState != APP_CMD_RESUME)) {
                 break;
             }
+        } else {
+            break;
         }
-
-        return true;
     }
 
+    return true;
+}
 
 } // namespace
 
 #ifdef __ANDROID__
 
-#include <android/log.h>
+    #include <android/log.h>
 
 void gstAndroidLog(GstDebugCategory *category,
                    GstDebugLevel level,
@@ -170,14 +170,11 @@ void gstAndroidLog(GstDebugCategory *category,
                    gpointer data) {
     if (level <= gst_debug_category_get_threshold(category)) {
         if (level == GST_LEVEL_ERROR) {
-            __android_log_print(ANDROID_LOG_ERROR, "GST", "%s, %s: %s", file, function,
-                                gst_debug_message_get(message));
+            __android_log_print(ANDROID_LOG_ERROR, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
         } else if (level == GST_LEVEL_WARNING) {
-            __android_log_print(ANDROID_LOG_WARN, "GST", "%s, %s: %s", file, function,
-                                gst_debug_message_get(message));
+            __android_log_print(ANDROID_LOG_WARN, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
         } else {
-            __android_log_print(ANDROID_LOG_DEBUG, "GST", "%s, %s: %s", file, function,
-                                gst_debug_message_get(message));
+            __android_log_print(ANDROID_LOG_DEBUG, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
         }
     }
 }
@@ -253,8 +250,10 @@ void android_main(struct android_app *app) {
 
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-        glViewport(0, 0, _state.width, _state.height);
         glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glViewport(0, 0, _state.width, _state.height);
 
         renderer->draw(sample->frame_texture_id, sample->frame_texture_target);
 

@@ -31,6 +31,9 @@ typedef struct _EmStreamClient EmStreamClient;
  */
 EmStreamClient *em_stream_client_new();
 
+/// Initialize the EGL context and surface.
+void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EGLDisplay display, EGLSurface surface);
+
 /*!
  * Clear a pointer and free the associate stream client, if any.
  *

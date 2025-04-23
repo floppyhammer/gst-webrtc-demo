@@ -46,6 +46,8 @@ static constexpr const GLchar *fragmentShaderSource = R"(#version 300 es
 
     void main() {
         frag_color = texture(textureSampler, frag_uv);
+        // Test
+//        frag_color = vec4(1.0, 0.0, 0.0, 1.0);
     }
 )";
 

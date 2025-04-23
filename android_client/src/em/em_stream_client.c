@@ -202,6 +202,21 @@ static void em_stream_client_init(EmStreamClient *sc) {
     ALOGI("%s: done creating stuff", __FUNCTION__);
 }
 
+void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EGLDisplay display, EGLSurface surface) {
+    ALOGI("Wrapping egl context");
+
+    sc->egl.display = display;
+    sc->egl.android_main_context = context;
+    sc->egl.surface = surface;
+
+    const GstGLPlatform egl_platform = GST_GL_PLATFORM_EGL;
+    guintptr android_main_egl_context_handle = gst_gl_context_get_current_gl_context(egl_platform);
+    GstGLAPI gl_api = gst_gl_context_get_current_gl_api(egl_platform, NULL, NULL);
+    sc->gst_gl_display = g_object_ref_sink(gst_gl_display_new());
+    sc->android_main_context = g_object_ref_sink(
+        gst_gl_context_new_wrapped(sc->gst_gl_display, android_main_egl_context_handle, egl_platform, gl_api));
+}
+
 static void em_stream_client_dispose(EmStreamClient *self) {
     // May be called multiple times during destruction.
     // Stop things and clear ref counted things here.
@@ -335,8 +350,6 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     // decodebin3 seems to .. hang?
     // omxh264dec doesn't seem to exist
 
-    // We'll need an active egl context below before setting up gstgl (as explained previously)
-
     //    GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODABLE,
     //                                                            GST_RANK_MARGINAL);
     //
@@ -351,12 +364,14 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     //        g_print("Decoder: %s\n", name);
     //    }
 
+    // We'll need an active egl context below before setting up gstgl (as explained previously)
+
     gchar *pipeline_string = g_strdup_printf(
         "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
         "rtph264depay ! "
         "h264parse ! "
         "video/x-h264,stream-format=(string)byte-stream, alignment=(string)au,parsed=(boolean)true ! "
-        "decodebin3 ! " // amcviddec-omxgoogleh264decoder
+        "amcviddec-omxgoogleh264decoder ! " // amcviddec-omxgoogleh264decoder
         "glsinkbin name=glsink");
 
     sc->pipeline = gst_object_ref_sink(gst_parse_launch(pipeline_string, &error));
@@ -368,9 +383,6 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
         ALOGE("Error creating a pipeline from string: %s", error ? error->message : "Unknown");
         abort();
     }
-
-    // Un-current the EGL context
-    //    em_stream_client_egl_end(sc);
 
     // We convert the string SINK_CAPS above into a GstCaps that elements below can understand.
     // the "video/x-raw(" GST_CAPS_FEATURE_MEMORY_GL_MEMORY ")," part of the caps is read :
@@ -444,17 +456,6 @@ static void *em_stream_client_thread_func(void *ptr) {
  * Public functions
  */
 EmStreamClient *em_stream_client_new() {
-#if 0
-	ALOGI("%s: before g_object_new", __FUNCTION__);
-	gpointer self_untyped = g_object_new(EM_TYPE_STREAM_CLIENT, NULL);
-	if (self_untyped == NULL) {
-		ALOGE("%s: g_object_new failed to allocate", __FUNCTION__);
-		return NULL;
-	}
-	EmStreamClient *self = EM_STREAM_CLIENT(self_untyped);
-
-	ALOGI("%s: after g_object_new", __FUNCTION__);
-#endif
     EmStreamClient *self = calloc(1, sizeof(EmStreamClient));
     em_stream_client_init(self);
     return self;
@@ -535,10 +536,10 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
 
     // TODO: Handle resize?
 #if 0
-	if (width != sc->width || height != sc->height) {
-		sc->width = width;
-		sc->height = height;
-	}
+    if (width != sc->width || height != sc->height) {
+        sc->width = width;
+        sc->height = height;
+    }
 #endif
 
     struct em_sc_sample *ret = calloc(1, sizeof(struct em_sc_sample));

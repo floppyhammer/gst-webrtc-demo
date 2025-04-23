@@ -11,12 +11,12 @@
 #include "EglData.hpp"
 
 #include <EGL/egl.h>
+#include <android_native_app_glue.h>
 
 #include <stdexcept>
 
 #include "em/em_app_log.h"
 #include "em/render/GLError.h"
-#include <android_native_app_glue.h>
 
 EglData::EglData(ANativeWindow *window) {
     display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
@@ -38,28 +38,28 @@ EglData::EglData(ANativeWindow *window) {
 
     // RGBA8, multisample not required, ES3, and window
     const EGLint attributes[] = {
-            EGL_RED_SIZE,
-            8, //
+        EGL_RED_SIZE,
+        8, //
 
-            EGL_GREEN_SIZE,
-            8, //
+        EGL_GREEN_SIZE,
+        8, //
 
-            EGL_BLUE_SIZE,
-            8, //
+        EGL_BLUE_SIZE,
+        8, //
 
-            EGL_ALPHA_SIZE,
-            8, //
+        EGL_ALPHA_SIZE,
+        8, //
 
-            EGL_SAMPLES,
-            1, //
+        EGL_SAMPLES,
+        1, //
 
-            EGL_RENDERABLE_TYPE,
-            EGL_OPENGL_ES3_BIT,
+        EGL_RENDERABLE_TYPE,
+        EGL_OPENGL_ES3_BIT,
 
-            EGL_SURFACE_TYPE,
-            EGL_WINDOW_BIT,
+        EGL_SURFACE_TYPE,
+        EGL_WINDOW_BIT,
 
-            EGL_NONE,
+        EGL_NONE,
     };
 
     EGLint num_configs = 0;
