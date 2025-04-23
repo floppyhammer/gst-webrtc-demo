@@ -17,18 +17,20 @@
 
 struct EglData {
     /// Creates an R8G8B8A8 ES3 context and pbuffer surface (for some reason)
-    EglData();
+    EglData(ANativeWindow *window);
 
     /// Calls reset
     ~EglData();
 
     // do not move
     EglData(const EglData &) = delete;
+
     // do not move
     EglData(EglData &&) = delete;
 
     // do not copy
     EglData &operator=(const EglData &) = delete;
+
     // do not copy
     EglData &operator=(EglData &&) = delete;
 

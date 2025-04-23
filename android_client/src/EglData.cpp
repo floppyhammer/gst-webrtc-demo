@@ -16,8 +16,9 @@
 
 #include "em/em_app_log.h"
 #include "em/render/GLError.h"
+#include <android_native_app_glue.h>
 
-EglData::EglData() {
+EglData::EglData(ANativeWindow *window) {
     display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 
     if (display == EGL_NO_DISPLAY) {
@@ -37,28 +38,28 @@ EglData::EglData() {
 
     // RGBA8, multisample not required, ES3, pbuffer and window
     const EGLint attributes[] = {
-        EGL_RED_SIZE,
-        8, //
+            EGL_RED_SIZE,
+            8, //
 
-        EGL_GREEN_SIZE,
-        8, //
+            EGL_GREEN_SIZE,
+            8, //
 
-        EGL_BLUE_SIZE,
-        8, //
+            EGL_BLUE_SIZE,
+            8, //
 
-        EGL_ALPHA_SIZE,
-        8, //
+            EGL_ALPHA_SIZE,
+            8, //
 
-        EGL_SAMPLES,
-        1, //
+            EGL_SAMPLES,
+            1, //
 
-        EGL_RENDERABLE_TYPE,
-        EGL_OPENGL_ES3_BIT,
+            EGL_RENDERABLE_TYPE,
+            EGL_OPENGL_ES3_BIT,
 
-        EGL_SURFACE_TYPE,
-        (EGL_PBUFFER_BIT | EGL_WINDOW_BIT),
+            EGL_SURFACE_TYPE,
+            (EGL_PBUFFER_BIT | EGL_WINDOW_BIT),
 
-        EGL_NONE,
+            EGL_NONE,
     };
 
     EGLint num_configs = 0;
@@ -72,6 +73,9 @@ EglData::EglData() {
 
     config = configs[0];
 
+    EGLint format;
+    eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID, &format);
+
     EGLint contextAttributes[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
     CHK_EGL(context = eglCreateContext(display, config, EGL_NO_CONTEXT, contextAttributes));
 
@@ -83,19 +87,24 @@ EglData::EglData() {
     ALOGI("EGL: Created context");
 
     // TODO why are we making a 16x16 pbuffer surface? Do we even need it?
-    EGLint surfaceAttributes[] = {
-        EGL_WIDTH,
-        16, //
-        EGL_HEIGHT,
-        16, //
-        EGL_NONE,
-    };
-    CHK_EGL(surface = eglCreatePbufferSurface(display, config, surfaceAttributes));
+//    EGLint surfaceAttributes[] = {
+//        EGL_WIDTH,
+//        1000, //
+//        EGL_HEIGHT,
+//        1000, //
+//        EGL_NONE,
+//    };
+//    CHK_EGL(surface = eglCreatePbufferSurface(display, config, surfaceAttributes));
+
+    ANativeWindow_setBuffersGeometry(window, 0, 0, format);
+    surface = eglCreateWindowSurface(display, config, window, NULL);
+
     if (surface == EGL_NO_SURFACE) {
         ALOGE("Failed to create EGL surface");
         eglDestroyContext(display, context);
         throw std::runtime_error("Failed to create EGL surface");
     }
+
     CHECK_EGL_ERROR();
     ALOGI("EGL: Created surface");
 }
