@@ -130,7 +130,7 @@ namespace {
  *
  * @return true if we should go to the render code
  */
-    bool poll_events(struct android_app *app, struct em_state &state) {
+    bool poll_events(struct android_app *app) {
         // Poll Android events
         for (;;) {
             int events;
@@ -230,11 +230,12 @@ void android_main(struct android_app *app) {
     // Main rendering loop.
     ALOGI("DEBUG: Starting main loop");
     while (!app->destroyRequested) {
-        if (!initialEglData || !renderer || !stream_client) {
+        if (!poll_events(app)) {
             continue;
         }
 
-        if (poll_events(app, _state)) {
+        if (!initialEglData || !renderer || !stream_client) {
+            continue;
         }
 
         initialEglData->makeCurrent();

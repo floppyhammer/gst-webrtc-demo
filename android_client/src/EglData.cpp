@@ -36,7 +36,7 @@ EglData::EglData(ANativeWindow *window) {
 #define MAX_CONFIGS 1024
     EGLConfig configs[MAX_CONFIGS];
 
-    // RGBA8, multisample not required, ES3, pbuffer and window
+    // RGBA8, multisample not required, ES3, and window
     const EGLint attributes[] = {
             EGL_RED_SIZE,
             8, //
@@ -57,7 +57,7 @@ EglData::EglData(ANativeWindow *window) {
             EGL_OPENGL_ES3_BIT,
 
             EGL_SURFACE_TYPE,
-            (EGL_PBUFFER_BIT | EGL_WINDOW_BIT),
+            EGL_WINDOW_BIT,
 
             EGL_NONE,
     };
@@ -85,16 +85,6 @@ EglData::EglData(ANativeWindow *window) {
     }
     CHECK_EGL_ERROR();
     ALOGI("EGL: Created context");
-
-    // TODO why are we making a 16x16 pbuffer surface? Do we even need it?
-//    EGLint surfaceAttributes[] = {
-//        EGL_WIDTH,
-//        1000, //
-//        EGL_HEIGHT,
-//        1000, //
-//        EGL_NONE,
-//    };
-//    CHK_EGL(surface = eglCreatePbufferSurface(display, config, surfaceAttributes));
 
     ANativeWindow_setBuffersGeometry(window, 0, 0, format);
     surface = eglCreateWindowSurface(display, config, window, NULL);
