@@ -1,0 +1,270 @@
+// Copyright 2023, Pluto VR, Inc.
+//
+// SPDX-License-Identifier: BSL-1.0
+
+/*!
+ * @file
+ * @brief Main file for WebRTC client.
+ * @author Moshi Turner <moses@collabora.com>
+ * @author Rylie Pavlik <rpavlik@collabora.com>
+ */
+#include <EGL/egl.h>
+#include <GLES3/gl3.h>
+#include <GLES3/gl32.h>
+#include <android/asset_manager_jni.h>
+#include <android/log.h>
+#include <android/native_activity.h>
+#include <android_native_app_glue.h>
+#include <assert.h>
+#include <errno.h>
+#include <gst/gst.h>
+#include <jni.h>
+#include <pthread.h>
+#include <stdbool.h>
+#include <unistd.h>
+
+#include <array>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <memory>
+#include <thread>
+
+#include "EglData.hpp"
+#include "em/em_app_log.h"
+#include "em/em_connection.h"
+#include "em/em_stream_client.h"
+#include "em/gst_common.h"
+#include "em/render/render.hpp"
+#include "em/render/xr_platform_deps.h"
+
+namespace {
+
+struct em_state {
+    bool connected;
+
+    uint32_t width;
+    uint32_t height;
+
+    EmConnection *connection;
+};
+
+em_state _state = {};
+
+void onAppCmd(struct android_app *app, int32_t cmd) {
+    switch (cmd) {
+        case APP_CMD_START:
+            ALOGI("APP_CMD_START");
+            break;
+        case APP_CMD_RESUME:
+            ALOGI("APP_CMD_RESUME");
+            break;
+        case APP_CMD_PAUSE:
+            ALOGI("APP_CMD_PAUSE");
+            break;
+        case APP_CMD_STOP:
+            ALOGE("APP_CMD_STOP - shutting down connection");
+            em_connection_disconnect(_state.connection);
+            _state.connected = false;
+            break;
+        case APP_CMD_DESTROY:
+            ALOGI("APP_CMD_DESTROY");
+            break;
+        case APP_CMD_INIT_WINDOW:
+            ALOGI("APP_CMD_INIT_WINDOW");
+            break;
+        case APP_CMD_TERM_WINDOW:
+            ALOGI("APP_CMD_TERM_WINDOW - shutting down connection");
+            em_connection_disconnect(_state.connection);
+            _state.connected = false;
+            break;
+    }
+}
+
+/**
+ * Poll for Android and OpenXR events, and handle them
+ *
+ * @param state app state
+ *
+ * @return true if we should go to the render code
+ */
+bool poll_events(struct android_app *app, struct em_state &state) {
+    // Poll Android events
+    for (;;) {
+        int events;
+        struct android_poll_source *source;
+        bool wait = !app->window || app->activityState != APP_CMD_RESUME;
+        int timeout = wait ? -1 : 0;
+        if (ALooper_pollAll(timeout, NULL, &events, (void **)&source) >= 0) {
+            if (source) {
+                source->process(app, source);
+            }
+
+            if (timeout == 0 && (!app->window || app->activityState != APP_CMD_RESUME)) {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    return true;
+}
+
+void connected_cb(EmConnection *connection, struct em_state *state) {
+    ALOGI("%s: Got signal that we are connected!", __FUNCTION__);
+
+    state->connected = true;
+}
+
+} // namespace
+
+#ifdef __ANDROID__
+
+    #include <android/log.h>
+
+void gstAndroidLog(GstDebugCategory *category,
+                   GstDebugLevel level,
+                   const gchar *file,
+                   const gchar *function,
+                   gint line,
+                   GObject *object,
+                   GstDebugMessage *message,
+                   gpointer data) {
+    if (level <= gst_debug_category_get_threshold(category)) {
+        if (level == GST_LEVEL_ERROR) {
+            __android_log_print(ANDROID_LOG_ERROR, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
+        } else if (level == GST_LEVEL_WARNING) {
+            __android_log_print(ANDROID_LOG_WARN, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
+        } else {
+            __android_log_print(ANDROID_LOG_DEBUG, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
+        }
+    }
+}
+
+#endif
+
+struct em_sample *prev_sample;
+
+typedef enum EmPollRenderResult {
+    EM_POLL_RENDER_RESULT_ERROR_EGL = -2,
+    EM_POLL_RENDER_RESULT_ERROR_WAITFRAME = -1,
+    EM_POLL_RENDER_RESULT_NO_SAMPLE_AVAILABLE = 0,
+    EM_POLL_RENDER_RESULT_SHOULD_NOT_RENDER,
+    EM_POLL_RENDER_RESULT_REUSED_SAMPLE,
+    EM_POLL_RENDER_RESULT_NEW_SAMPLE,
+    EM_POLL_RENDER_RESULT_ERROR_ENDFRAME,
+} EmPollRenderResult;
+
+void android_main(struct android_app *app) {
+    setenv("GST_DEBUG", "*:2,webrtc*:9,sctp*:9,dtls*:9,amcvideodec:9", 1);
+
+    // Do not do ansi color codes
+    setenv("GST_DEBUG_NO_COLOR", "1", 1);
+
+    JNIEnv *env = nullptr;
+    (*app->activity->vm).AttachCurrentThread(&env, NULL);
+    app->onAppCmd = onAppCmd;
+
+    auto initialEglData = std::make_unique<EglData>();
+    initialEglData->makeCurrent();
+
+    //
+    // Start of remote-rendering-specific code
+    //
+
+    // Set up gstreamer
+    gst_init(0, NULL);
+
+    // Set up gst logger
+    {
+#ifdef __ANDROID__
+        gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
+#endif
+        //		gst_debug_set_default_threshold(GST_LEVEL_WARNING);
+        //		gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
+        //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
+    }
+
+    EmStreamClient *stream_client = em_stream_client_new();
+
+    std::unique_ptr<Renderer> renderer;
+    try {
+        ALOGI("%s: Setup renderer...", __FUNCTION__);
+        renderer = std::make_unique<Renderer>();
+        renderer->setupRender();
+    } catch (std::exception const &e) {
+        ALOGE("%s: Caught exception setting up renderer: %s", __FUNCTION__, e.what());
+        renderer->reset();
+        abort();
+    }
+
+    _state.connection = g_object_ref_sink(em_connection_new_localhost());
+
+    g_signal_connect(_state.connection, "connected", G_CALLBACK(connected_cb), &_state);
+
+    em_connection_connect(_state.connection);
+
+    ALOGI("%s: starting stream client mainloop thread", __FUNCTION__);
+    em_stream_client_spawn_thread(stream_client, _state.connection);
+
+    //
+    // End of remote-rendering-specific setup, into main loop
+    //
+
+    uint32_t width = 1000;
+    uint32_t height = 1000;
+
+    // Main rendering loop.
+    ALOGI("DEBUG: Starting main loop");
+    while (!app->destroyRequested) {
+        if (poll_events(app, _state)) {
+        }
+
+        initialEglData->makeCurrent();
+
+        struct timespec decodeEndTime;
+        struct em_sample *sample = em_stream_client_try_pull_sample(stream_client, &decodeEndTime);
+
+        if (sample == nullptr) {
+            if (prev_sample) {
+                // EM_POLL_RENDER_RESULT_REUSED_SAMPLE;
+                //                sample = prev_sample;
+            }
+            continue;
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        glViewport(0, 0, width * 2, height);
+        glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
+
+        renderer->draw(sample->frame_texture_id, sample->frame_texture_target);
+
+        glFlush();
+
+        eglSwapBuffers(initialEglData->display, initialEglData->surface);
+
+        if (prev_sample != NULL) {
+            em_stream_client_release_sample(stream_client, prev_sample);
+            prev_sample = NULL;
+        }
+        prev_sample = sample;
+
+        initialEglData->makeNotCurrent();
+    }
+
+    ALOGI("DEBUG: Exited main loop, cleaning up");
+
+    //
+    // Clean up
+    //
+
+    g_clear_object(&_state.connection);
+
+    em_stream_client_destroy(&stream_client);
+
+    initialEglData = nullptr;
+
+    (*app->activity->vm).DetachCurrentThread();
+}

@@ -1,0 +1,16 @@
+// Copyright 2023, Pluto VR, Inc.
+//
+// SPDX-License-Identifier: BSL-1.0
+
+pluginManagement {
+
+    repositories {
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+}
+
+include ':gstreamer_java'
+include ':app'
+rootProject.name = "gst-webrtc-client"
