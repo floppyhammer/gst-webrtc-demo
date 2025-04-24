@@ -68,7 +68,7 @@ if(ANDROID)
 	endif()
 
 	option(EMC_OLDER_GST "Some older versions of gstreamer use libsoup2.4 instead of libsoup3.0" OFF)
-	set(EMC_OLDER_GST ON)
+	set(EMC_OLDER_GST OFF)
 
 	set(USE_GST_SHARED OFF)
 	if(USE_GST_SHARED)
