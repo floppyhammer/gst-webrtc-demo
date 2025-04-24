@@ -16,8 +16,6 @@
 static gchar *websocket_uri = NULL;
 
 // If you don't have a local network, use `adb forward tcp:8080 tcp:8080` to map Android port
-// #define WEBSOCKET_URI_DEFAULT "ws://10.11.9.147:8080/ws"
-// #define WEBSOCKET_URI_DEFAULT "ws://10.11.9.210:8080/ws"
 #define WEBSOCKET_URI_DEFAULT "ws://127.0.0.1:8080/ws"
 
 static GOptionEntry options[] = {{

@@ -41,12 +41,12 @@
 namespace {
 
 struct em_state {
-    bool connected;
+    bool connected = false;
 
-    int32_t width;
-    int32_t height;
+    int32_t width = 0;
+    int32_t height = 0;
 
-    EmConnection *connection;
+    EmConnection *connection = nullptr;
 };
 
 std::unique_ptr<Renderer> renderer;
@@ -156,42 +156,7 @@ bool poll_events(struct android_app *app) {
 
 } // namespace
 
-#ifdef __ANDROID__
-
-    #include <android/log.h>
-
-void gstAndroidLog(GstDebugCategory *category,
-                   GstDebugLevel level,
-                   const gchar *file,
-                   const gchar *function,
-                   gint line,
-                   GObject *object,
-                   GstDebugMessage *message,
-                   gpointer data) {
-    if (level <= gst_debug_category_get_threshold(category)) {
-        if (level == GST_LEVEL_ERROR) {
-            __android_log_print(ANDROID_LOG_ERROR, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
-        } else if (level == GST_LEVEL_WARNING) {
-            __android_log_print(ANDROID_LOG_WARN, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
-        } else {
-            __android_log_print(ANDROID_LOG_DEBUG, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
-        }
-    }
-}
-
-#endif
-
 struct em_sample *prev_sample;
-
-typedef enum EmPollRenderResult {
-    EM_POLL_RENDER_RESULT_ERROR_EGL = -2,
-    EM_POLL_RENDER_RESULT_ERROR_WAITFRAME = -1,
-    EM_POLL_RENDER_RESULT_NO_SAMPLE_AVAILABLE = 0,
-    EM_POLL_RENDER_RESULT_SHOULD_NOT_RENDER,
-    EM_POLL_RENDER_RESULT_REUSED_SAMPLE,
-    EM_POLL_RENDER_RESULT_NEW_SAMPLE,
-    EM_POLL_RENDER_RESULT_ERROR_ENDFRAME,
-} EmPollRenderResult;
 
 void android_main(struct android_app *app) {
     setenv("GST_DEBUG", "*:2,webrtc*:9,sctp*:9,dtls*:9,amcvideodec:9", 1);
@@ -212,12 +177,9 @@ void android_main(struct android_app *app) {
 
     // Set up gst logger
     {
-#ifdef __ANDROID__
-//        gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
-#endif
         //		gst_debug_set_default_threshold(GST_LEVEL_WARNING);
         //		gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
-        //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
+        //      gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }
 
     //

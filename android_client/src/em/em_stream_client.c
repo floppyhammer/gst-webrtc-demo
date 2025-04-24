@@ -370,7 +370,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
         "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
         "rtph264depay ! "
         "h264parse ! "
-        "video/x-h264,stream-format=(string)byte-stream, alignment=(string)au,parsed=(boolean)true ! "
+        "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
         "decodebin3 ! " // amcviddec-omxgoogleh264decoder
         "glsinkbin name=glsink");
 
