@@ -576,9 +576,10 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
     }
 
     gst_video_frame_unmap(&frame);
-    // move sample ownership into the return value
+    // Move sample ownership into the return value
     ret->sample = sample;
-    return &(ret->base);
+
+    return ret;
 }
 
 void em_stream_client_release_sample(EmStreamClient *sc, struct em_sample *ems) {
