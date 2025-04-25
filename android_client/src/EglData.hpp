@@ -16,8 +16,8 @@
 #include <memory>
 
 struct EglData {
-    /// Creates an R8G8B8A8 ES3 context and pbuffer surface (for some reason)
-    EglData(ANativeWindow *window);
+    /// Creates an R8G8B8A8 ES3 context
+    explicit EglData(ANativeWindow *window);
 
     /// Calls reset
     ~EglData();
@@ -34,9 +34,7 @@ struct EglData {
     // do not copy
     EglData &operator=(EglData &&) = delete;
 
-    bool isReady() const noexcept {
-        return display != EGL_NO_DISPLAY && context != EGL_NO_CONTEXT && surface != EGL_NO_SURFACE;
-    }
+    bool isReady() const;
 
     void makeCurrent() const;
 

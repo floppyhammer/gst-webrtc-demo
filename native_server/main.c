@@ -1,9 +1,10 @@
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 #include "../src/server/server_pipeline.h"
 #include "../src/utils/logger.h"
-#include "stdio.h"
 
 int main(int argc, char *argv[]) {
 #ifdef __linux__

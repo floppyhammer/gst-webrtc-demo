@@ -454,8 +454,10 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 #ifndef __ANDROID__
 // "tee name=tp tp. ! queue! videoconvert ! autovideosink tp. ! " //
 #endif
-        "queue ! "                         //
-        "videoconvert ! "                  //
+        "queue ! "        //
+        "videoconvert ! " //
+        "videorate ! "
+        "videoscale ! "
         "video/x-raw,format=NV12 ! "       //
         "queue ! "                         //
         "x264enc tune=zerolatency ! "      //

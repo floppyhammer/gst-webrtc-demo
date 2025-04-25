@@ -39,19 +39,19 @@ EglData::EglData(ANativeWindow *window) {
     // RGBA8, multisample not required, ES3, and window
     const EGLint attributes[] = {
         EGL_RED_SIZE,
-        8, //
+        8,
 
         EGL_GREEN_SIZE,
-        8, //
+        8,
 
         EGL_BLUE_SIZE,
-        8, //
+        8,
 
         EGL_ALPHA_SIZE,
-        8, //
+        8,
 
         EGL_SAMPLES,
-        1, //
+        1,
 
         EGL_RENDERABLE_TYPE,
         EGL_OPENGL_ES3_BIT,
@@ -113,6 +113,10 @@ EglData::~EglData() {
         eglDestroyContext(d, context);
         context = EGL_NO_CONTEXT;
     }
+}
+
+bool EglData::isReady() const {
+    return display != EGL_NO_DISPLAY && context != EGL_NO_CONTEXT && surface != EGL_NO_SURFACE;
 }
 
 void EglData::makeCurrent() const {
