@@ -418,23 +418,20 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // Setup pipeline
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
-        // "filesrc location=test.mp4 ! decodebin ! " //
-        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=3840,height=1080,framerate=60/1 ! "
-#ifndef __ANDROID__
-// "tee name=tp tp. ! queue! videoconvert ! autovideosink tp. ! " //
-#endif
-        "queue ! "        //
-        "videoconvert ! " //
+        // "filesrc location=test.mp4 ! decodebin ! "
+        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=1280,height=720,framerate=60/1 ! "
+        "queue ! "
+        "videoconvert ! "
         "videorate ! "
         "videoscale ! "
-        "video/x-raw,format=NV12 ! "       //
-        "queue ! "                         //
-        "x264enc tune=zerolatency ! "      //
-        "video/x-h264,profile=baseline ! " //
-        "queue ! "                         //
-        "h264parse ! "                     //
-        "rtph264pay config-interval=1 ! "  //
-        "application/x-rtp,payload=96 ! "  //
+        "video/x-raw,format=NV12 ! "
+        "queue ! "
+        "x264enc tune=zerolatency ! "
+        "video/x-h264,profile=baseline ! "
+        "queue ! "
+        "h264parse ! "
+        "rtph264pay config-interval=1 ! "
+        "application/x-rtp,payload=96 ! "
         "tee name=%s allow-not-linked=true",
         MY_TEE_NAME);
 
@@ -446,7 +443,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
     // Set up gst logger
     {
-        gst_debug_set_default_threshold(GST_LEVEL_INFO);
+        // gst_debug_set_default_threshold(GST_LEVEL_INFO);
         // gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
         // gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }
@@ -470,12 +467,12 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
 void server_pipeline_dump(struct MyGstData* mgd) {
 #ifndef __ANDROID__
-    ALOGD("Writing dot file");
+    ALOGD("Write dot file");
     GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
     ALOGD("Writing dot file done");
 #else
-    ALOGD("Send dot file");
+    ALOGD("Print dot file");
     gchar* data = gst_debug_bin_to_dot_data(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    g_signal_emit_by_name((GstWebRTCDataChannel*)mgd->data_channel, "send-string", data);
+    ALOGD("DOT data: %s", data);
 #endif
 }

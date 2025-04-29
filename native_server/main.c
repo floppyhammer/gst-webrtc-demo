@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[]) {
 #ifdef __linux__
-    setenv("GST_DEBUG", "GST_TRACER:7", 1);
+    // setenv("GST_DEBUG", "GST_TRACER:7", 1);
     // setenv("GST_TRACERS", "latency(flags=element+pipeline)", 1); // Latency
     // setenv("GST_DEBUG_FILE", "./latency.log", 1); // Redirect log to a file
 
