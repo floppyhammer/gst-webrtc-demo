@@ -177,7 +177,7 @@ void android_main(struct android_app *app) {
 
     // Set up gst logger
     {
-        //		gst_debug_set_default_threshold(GST_LEVEL_WARNING);
+        gst_debug_set_default_threshold(GST_LEVEL_INFO);
         //		gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
         //      gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }

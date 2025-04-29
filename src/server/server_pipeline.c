@@ -226,11 +226,7 @@ static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_
     GstPromise* promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_offer_created, webrtcbin, NULL);
     g_signal_emit_by_name(webrtcbin, "create-offer", NULL, promise);
 
-#ifndef DISABLE_DYNAMIC_PIPELINE
     ret = gst_element_set_state(webrtcbin, GST_STATE_PLAYING);
-#else
-    ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
-#endif
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
     g_free(name);
@@ -381,12 +377,10 @@ void server_pipeline_play(struct MyGstData* mgd) {
     ALOGD("Starting pipeline");
     main_loop = g_main_loop_new(NULL, FALSE);
 
-// Play the pipeline
-// Note that webrtcbin is not linked yet
-#ifndef DISABLE_DYNAMIC_PIPELINE
+    // Play the pipeline
+    // Note that webrtcbin is not linked yet
     GstStateChangeReturn ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
-#endif
 
     g_signal_connect(signaling_server, "ws-client-connected", G_CALLBACK(webrtc_client_connected_cb), mgd);
 
@@ -414,31 +408,6 @@ void server_pipeline_stop(struct MyGstData* mgd) {
     gst_element_set_state(mgd->pipeline, GST_STATE_NULL);
 }
 
-#ifdef __ANDROID__
-
-    #include <android/log.h>
-
-void gstAndroidLog(GstDebugCategory* category,
-                   GstDebugLevel level,
-                   const gchar* file,
-                   const gchar* function,
-                   gint line,
-                   GObject* object,
-                   GstDebugMessage* message,
-                   gpointer data) {
-    if (level <= gst_debug_category_get_threshold(category)) {
-        if (level == GST_LEVEL_ERROR) {
-            __android_log_print(ANDROID_LOG_ERROR, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
-        } else if (level == GST_LEVEL_WARNING) {
-            __android_log_print(ANDROID_LOG_WARN, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
-        } else {
-            __android_log_print(ANDROID_LOG_DEBUG, "GST", "%s, %s: %s", file, function, gst_debug_message_get(message));
-        }
-    }
-}
-
-#endif
-
 #define U_TYPED_CALLOC(TYPE) ((TYPE*)calloc(1, sizeof(TYPE)))
 
 void server_pipeline_create(struct MyGstData** out_gst_data) {
@@ -447,10 +416,10 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     signaling_server = signaling_server_new();
 
     // Setup pipeline
+    // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
         // "filesrc location=test.mp4 ! decodebin ! " //
-        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=1280,height=720 ! " // is-live=true is to fix first
-                                                                                        // frame delay
+        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=3840,height=1080,framerate=60/1 ! "
 #ifndef __ANDROID__
 // "tee name=tp tp. ! queue! videoconvert ! autovideosink tp. ! " //
 #endif
@@ -477,12 +446,9 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
     // Set up gst logger
     {
-#ifdef __ANDROID__
-        gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
-#endif
-        gst_debug_set_default_threshold(GST_LEVEL_WARNING);
-        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
-        //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
+        gst_debug_set_default_threshold(GST_LEVEL_INFO);
+        // gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
+        // gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }
 
     GstElement* pipeline = gst_parse_launch(pipeline_str, &error);
