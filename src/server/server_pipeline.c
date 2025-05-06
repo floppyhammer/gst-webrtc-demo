@@ -20,6 +20,9 @@
 
 #define MY_TEE_NAME "my_tee"
 
+// Use encodebin instead of x264enc
+// #define USE_ENCODEBIN
+
 SignalingServer* signaling_server;
 
 struct MyGstData {
@@ -426,8 +429,12 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "videoscale ! "
         "video/x-raw,format=NV12 ! "
         "queue ! "
+#ifdef USE_ENCODEBIN
+        "encodebin2 profile=\"video/x-h264,profile=baseline,tune=zerolatency\" ! "
+#else
         "x264enc tune=zerolatency ! "
         "video/x-h264,profile=baseline ! "
+#endif
         "queue ! "
         "h264parse ! "
         "rtph264pay config-interval=1 ! "
