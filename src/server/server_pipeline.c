@@ -432,7 +432,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 #ifdef USE_ENCODEBIN
         "encodebin2 profile=\"video/x-h264,profile=baseline,tune=zerolatency\" ! "
 #else
-        "x264enc tune=zerolatency ! "
+        "x264enc tune=zerolatency bitrate=8192 ! "
         "video/x-h264,profile=baseline ! "
 #endif
         "queue ! "
