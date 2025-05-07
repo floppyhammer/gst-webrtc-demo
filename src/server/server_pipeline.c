@@ -456,6 +456,9 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     }
 
     GstElement* pipeline = gst_parse_launch(pipeline_str, &error);
+    if (error) {
+        ALOGE("Pipeline parsing error: %s", error->message);
+    }
     g_assert_no_error(error);
     g_free(pipeline_str);
 
