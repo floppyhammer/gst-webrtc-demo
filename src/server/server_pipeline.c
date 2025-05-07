@@ -411,6 +411,23 @@ void server_pipeline_stop(struct MyGstData* mgd) {
     gst_element_set_state(mgd->pipeline, GST_STATE_NULL);
 }
 
+void gstAndroidLog(GstDebugCategory* category,
+                   GstDebugLevel level,
+                   const gchar* file,
+                   const gchar* function,
+                   gint line,
+                   GObject* object,
+                   GstDebugMessage* message,
+                   gpointer data) {
+    if (level <= gst_debug_category_get_threshold(category)) {
+        if (level == GST_LEVEL_ERROR) {
+            ALOGE("%s, %s: %s", file, function, gst_debug_message_get(message));
+        } else {
+            ALOGD("%s, %s: %s", file, function, gst_debug_message_get(message));
+        }
+    }
+}
+
 #define U_TYPED_CALLOC(TYPE) ((TYPE*)calloc(1, sizeof(TYPE)))
 
 void server_pipeline_create(struct MyGstData** out_gst_data) {
@@ -450,9 +467,14 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
     // Set up gst logger
     {
-        // gst_debug_set_default_threshold(GST_LEVEL_INFO);
-        // gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
-        // gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
+#ifdef __ANDROID__
+        gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
+#endif
+
+        gst_debug_set_default_threshold(GST_LEVEL_WARNING);
+        gst_debug_set_threshold_for_name("encodebin2", GST_LEVEL_INFO);
+        //        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
+        //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }
 
     GstElement* pipeline = gst_parse_launch(pipeline_str, &error);
