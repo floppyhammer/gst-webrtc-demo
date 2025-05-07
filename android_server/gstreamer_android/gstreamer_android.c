@@ -46,6 +46,8 @@ GST_PLUGIN_STATIC_DECLARE(playback); // "FFMPEG "
 GST_PLUGIN_STATIC_DECLARE(x264);
 
 GST_PLUGIN_STATIC_DECLARE(videorate);
+// To use encodebin
+GST_PLUGIN_STATIC_DECLARE(encoding);
 /* Declaration of static gio modules */
 
 /* Call this function to load GIO modules */
@@ -94,5 +96,6 @@ gst_init_static_plugins(void) {
     GST_PLUGIN_STATIC_REGISTER(playback);
     GST_PLUGIN_STATIC_REGISTER(x264);
     GST_PLUGIN_STATIC_REGISTER(videorate);
+    GST_PLUGIN_STATIC_REGISTER(encoding);
     gst_android_load_gio_modules();
 }
