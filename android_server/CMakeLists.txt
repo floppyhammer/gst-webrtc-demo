@@ -41,7 +41,7 @@ if (ANDROID)
                     STATUS
                     "GST_ARCH_DIR and GST_BASE_DIR not set, assuming default location"
             )
-            set(GST_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/gstreamer_android")
+            set(GST_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../deps/gstreamer_android")
         endif ()
         set(GST_ARCH_DIR ${GST_BASE_DIR}/${GST_ARCH})
     endif ()

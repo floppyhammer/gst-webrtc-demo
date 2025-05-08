@@ -34,7 +34,7 @@ task clean(type: Delete) {
 }
 
 ext {
-    gstreamerBaseDir = project.findProperty('gstreamerBaseDir') ?: "${projectDir}/deps/gstreamer_android"
+    gstreamerBaseDir = project.findProperty('gstreamerBaseDir') ?: "${projectDir}/../deps/gstreamer_android"
     gstreamerArchDir = project.findProperty('gstreamerArchDir') ?: ''
 
     // ndkVersion = '22.1.7171670' // '25.2.9519653'

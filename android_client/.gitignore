@@ -1,7 +1,6 @@
 gstreamer_java/build/
 build*/
 local.properties
-deps/
 .cxx/
 .gradle/
 .idea/
