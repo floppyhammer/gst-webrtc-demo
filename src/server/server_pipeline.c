@@ -439,7 +439,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
         // "filesrc location=test.mp4 ! decodebin ! "
-        "videotestsrc is-live=true pattern=ball ! video/x-raw,width=1280,height=720,framerate=60/1 ! "
+        "videotestsrc is-live=true ! video/x-raw,width=1280,height=720,framerate=60/1 ! "
         "queue ! "
         "videoconvert ! "
         "videorate ! "
@@ -498,13 +498,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 }
 
 void server_pipeline_dump(struct MyGstData* mgd) {
-#ifndef __ANDROID__
-    ALOGD("Write dot file");
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
-    ALOGD("Writing dot file done");
-#else
-    ALOGD("Print dot file");
+    ALOGD("DOT data:");
+    // GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
     gchar* data = gst_debug_bin_to_dot_data(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    ALOGD("DOT data: %s", data);
-#endif
+    ALOGD("%s", data);
 }
