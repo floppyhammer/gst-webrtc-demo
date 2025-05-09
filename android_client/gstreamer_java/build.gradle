@@ -13,7 +13,6 @@ tasks.register('copyGStreamerJava', Copy) {
     from(project.gstJavaDir) {
         include "**/*.java"
     }
-    // into layout.buildDirectory.dir("gstreamer_java/org/freedesktop/gstreamer")
     into layout.buildDirectory.dir("generated/source/gstreamer/main/org/freedesktop/gstreamer")
     includeEmptyDirs = false
 }
