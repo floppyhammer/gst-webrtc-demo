@@ -579,6 +579,9 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
     // Move sample ownership into the return value
     ret->sample = sample;
 
+    // Check pipeline
+//    gchar* data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+
     return ret;
 }
 

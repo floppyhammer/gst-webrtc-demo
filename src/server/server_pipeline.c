@@ -439,14 +439,11 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
         // "filesrc location=test.mp4 ! decodebin ! "
-        "videotestsrc is-live=true ! video/x-raw,width=1280,height=720,framerate=60/1 ! "
-        "queue ! "
-        "videoconvert ! "
-        "videorate ! "
-        "videoscale ! "
-        "video/x-raw,format=NV12 ! "
+        "videotestsrc pattern=colors is-live=true horizontal-speed=4 ! "
+        "video/x-raw,width=1280,height=720,framerate=60/1 ! "
         "queue ! "
 #ifdef USE_ENCODEBIN
+        // zerolatency is not available for some hw encoders
         "encodebin2 profile=\"video/x-h264|element-properties,bitrate=8192\" ! "
 #else
         "x264enc tune=zerolatency bitrate=8192 ! "
