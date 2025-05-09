@@ -22,8 +22,7 @@ android {
 //        }
         applicationId "com.gst.webrtc.standalone_client"
         minSdkVersion 26
-        // Version 30 breaks loader
-        targetSdkVersion 29
+        targetSdkVersion 33
         versionCode 1
         versionName "1.0"
 
@@ -63,4 +62,3 @@ dependencies {
     implementation 'androidx.core:core-ktx:1.10.1'
     implementation project(path: ':gstreamer_java')
 }
-

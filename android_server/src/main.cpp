@@ -127,7 +127,7 @@ void android_main(struct android_app *app) {
         poll_events(app, _state);
 
         time_t now_seconds = time(NULL);
-        if (!wrote_dot && now_seconds - start_seconds > 5) {
+        if (!wrote_dot && now_seconds - start_seconds > 10) {
             wrote_dot = true;
             server_pipeline_dump(mgd);
         }

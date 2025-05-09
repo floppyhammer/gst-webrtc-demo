@@ -12,8 +12,7 @@ android {
     defaultConfig {
         applicationId "com.gst.webrtc_server"
         minSdkVersion 26
-        // Version 30 breaks loader
-        targetSdkVersion 29
+        targetSdkVersion 33
         versionCode 1
         versionName "1.0"
 

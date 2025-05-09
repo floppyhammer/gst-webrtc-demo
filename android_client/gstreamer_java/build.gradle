@@ -25,8 +25,7 @@ android {
 
     defaultConfig {
         minSdkVersion 26
-        // Version 30 breaks loader
-        targetSdkVersion 29
+        targetSdkVersion 33
     }
     preBuild.dependsOn(copyGStreamerJava)
     sourceSets.main.java.srcDirs(layout.buildDirectory.dir("generated/source/gstreamer/main"))
