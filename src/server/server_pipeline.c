@@ -495,8 +495,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 }
 
 void server_pipeline_dump(struct MyGstData* mgd) {
-    ALOGD("DOT data:");
     // GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
     gchar* data = gst_debug_bin_to_dot_data(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    ALOGD("%s", data);
+    int _ = 0;
+    // ALOGD("%s", data);
 }
