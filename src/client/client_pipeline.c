@@ -305,7 +305,9 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
             "webrtcbin name=webrtc bundle-policy=max-bundle ! "
             "rtph264depay ! "
             "h264parse ! "
-            "avdec_h264 ! " // sudo apt install gstreamer1.0-libav
+            "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
+            "decodebin3 ! "
+            // "avdec_h264 ! " // sudo apt install gstreamer1.0-libav
             "autovideosink",
             &error);
         g_assert_no_error(error);

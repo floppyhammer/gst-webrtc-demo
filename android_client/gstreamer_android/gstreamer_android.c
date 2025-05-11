@@ -39,8 +39,6 @@ gst_android_load_gio_modules (void)
   GTlsBackend *backend;
   const gchar *ca_certs;
 
-
-
   ca_certs = g_getenv ("CA_CERTIFICATES");
 
   backend = g_tls_backend_get_default ();
