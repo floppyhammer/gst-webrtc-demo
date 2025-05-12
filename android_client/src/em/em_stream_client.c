@@ -372,6 +372,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
         "h264parse ! "
         "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
         "decodebin3 ! " // amcviddec-omxgoogleh264decoder
+        // "amcviddec-c2androidavcdecoder ! "
         // "avdec_h264 ! "
         "glsinkbin name=glsink");
 
