@@ -440,7 +440,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     gchar* pipeline_str = g_strdup_printf(
         // "filesrc location=test.mp4 ! decodebin ! "
         "videotestsrc pattern=colors is-live=true horizontal-speed=4 ! "
-        "video/x-raw,width=1280,height=720,framerate=60/1 ! "
+        "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
         "queue ! "
 #ifdef USE_ENCODEBIN
         // zerolatency is not available for some hw encoders
