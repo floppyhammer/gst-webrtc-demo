@@ -371,9 +371,12 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
         "rtph264depay ! "
         "h264parse ! "
         "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
-        "decodebin3 ! " // amcviddec-omxgoogleh264decoder
-        // "amcviddec-c2androidavcdecoder ! "
-        // "avdec_h264 ! "
+        "decodebin3 ! "
+//        "amcviddec-c2qtiavcdecoder ! "        // Hardware
+//        "amcviddec-omxqcomvideodecoderavc ! " // Hardware
+//        "amcviddec-c2androidavcdecoder ! "    // Software
+//        "amcviddec-omxgoogleh264decoder ! "   // Software
+
         "glsinkbin name=glsink");
 
     sc->pipeline = gst_object_ref_sink(gst_parse_launch(pipeline_string, &error));
@@ -517,6 +520,10 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
         sc->sample = NULL;
         decode_end = sc->sample_decode_end_ts;
     }
+
+    // Check pipeline
+//    gchar *data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+//    g_free(data);
 
     if (sample == NULL) {
         if (gst_app_sink_is_eos(GST_APP_SINK(sc->appsink))) {
