@@ -376,7 +376,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
 //        "amcviddec-omxqcomvideodecoderavc ! " // Hardware
 //        "amcviddec-c2androidavcdecoder ! "    // Software
 //        "amcviddec-omxgoogleh264decoder ! "   // Software
-
+        "video/x-raw(memory:GLMemory),format=(string)RGBA,width=(int)1280,height=(int)720,texture-target=(string)external-oes ! "
         "glsinkbin name=glsink");
 
     sc->pipeline = gst_object_ref_sink(gst_parse_launch(pipeline_string, &error));
