@@ -67,7 +67,8 @@ typedef void *(*os_run_func_t)(void *);
  *
  * @public @memberof os_thread_helper
  */
-static inline int os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t func, void *ptr) {
+static inline int
+os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t func, void *ptr) {
     pthread_mutex_lock(&oth->mutex);
 
     g_assert(oth->initialized);
@@ -202,7 +203,8 @@ static void em_stream_client_init(EmStreamClient *sc) {
     ALOGI("%s: done creating stuff", __FUNCTION__);
 }
 
-void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EGLDisplay display, EGLSurface surface) {
+void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EGLDisplay display,
+                                      EGLSurface surface) {
     ALOGI("Wrapping egl context");
 
     sc->egl.display = display;
@@ -214,7 +216,8 @@ void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EG
     GstGLAPI gl_api = gst_gl_context_get_current_gl_api(egl_platform, NULL, NULL);
     sc->gst_gl_display = g_object_ref_sink(gst_gl_display_new());
     sc->android_main_context = g_object_ref_sink(
-        gst_gl_context_new_wrapped(sc->gst_gl_display, android_main_egl_context_handle, egl_platform, gl_api));
+            gst_gl_context_new_wrapped(sc->gst_gl_display, android_main_egl_context_handle,
+                                       egl_platform, gl_api));
 }
 
 static void em_stream_client_dispose(EmStreamClient *self) {
@@ -268,25 +271,29 @@ static GstBusSyncReply bus_sync_handler_cb(GstBus *bus, GstMessage *msg, EmStrea
     return GST_BUS_PASS;
 }
 
-static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer data) {
+static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data) {
     // LOG_MSG(message);
 
-    GstBin *pipeline = GST_BIN(data);
+    GstBin *pipeline = GST_BIN(user_data);
 
     switch (GST_MESSAGE_TYPE(message)) {
         case GST_MESSAGE_ERROR: {
             GError *gerr = NULL;
             gchar *debug_msg = NULL;
             gst_message_parse_error(message, &gerr, &debug_msg);
+
             GST_DEBUG_BIN_TO_DOT_FILE(pipeline, GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-error");
-            gchar *dotdata = gst_debug_bin_to_dot_data(pipeline, GST_DEBUG_GRAPH_SHOW_ALL);
-            ALOGE("gst_bus_cb: DOT data: %s", dotdata);
+
+            gchar *dot_data = gst_debug_bin_to_dot_data(pipeline, GST_DEBUG_GRAPH_SHOW_ALL);
+            ALOGE("gst_bus_cb: DOT data: %s", dot_data);
+            g_free(dot_data);
 
             ALOGE("gst_bus_cb: Error: %s (%s)", gerr->message, debug_msg);
             g_error("gst_bus_cb: Error: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
-        } break;
+        }
+            break;
         case GST_MESSAGE_WARNING: {
             GError *gerr = NULL;
             gchar *debug_msg = NULL;
@@ -296,10 +303,12 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer data) {
             g_warning("gst_bus_cb: Warning: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
-        } break;
+        }
+            break;
         case GST_MESSAGE_EOS: {
             g_error("gst_bus_cb: Got EOS!!");
-        } break;
+        }
+            break;
         default:
             break;
     }
@@ -307,7 +316,7 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer data) {
 }
 
 static GstFlowReturn on_new_sample_cb(GstAppSink *appsink, gpointer user_data) {
-    EmStreamClient *sc = (EmStreamClient *)user_data;
+    EmStreamClient *sc = (EmStreamClient *) user_data;
 
     // TODO record the frame ID, get frame pose
     struct timespec ts;
@@ -367,17 +376,17 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     // We'll need an active egl context below before setting up gstgl (as explained previously)
 
     gchar *pipeline_string = g_strdup_printf(
-        "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
-        "rtph264depay ! "
-        "h264parse ! "
-        "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
-        "decodebin3 ! "
-//        "amcviddec-c2qtiavcdecoder ! "        // Hardware
-//        "amcviddec-omxqcomvideodecoderavc ! " // Hardware
-//        "amcviddec-c2androidavcdecoder ! "    // Software
-//        "amcviddec-omxgoogleh264decoder ! "   // Software
-        "video/x-raw(memory:GLMemory),format=(string)RGBA,width=(int)1280,height=(int)720,texture-target=(string)external-oes ! "
-        "glsinkbin name=glsink");
+            "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
+            "rtph264depay ! "
+            "h264parse ! "
+            "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
+            "decodebin3 ! "
+            //        "amcviddec-c2qtiavcdecoder ! "        // Hardware
+            //        "amcviddec-omxqcomvideodecoderavc ! " // Hardware
+            //        "amcviddec-c2androidavcdecoder ! "    // Software
+            //        "amcviddec-omxgoogleh264decoder ! "   // Software
+            //        "video/x-raw(memory:GLMemory),format=(string)RGBA,width=(int)1280,height=(int)720,texture-target=(string)external-oes ! "
+            "glsinkbin name=glsink");
 
     sc->pipeline = gst_object_ref_sink(gst_parse_launch(pipeline_string, &error));
     if (sc->pipeline == NULL) {
@@ -404,16 +413,16 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     //       manually link them below using glsinkbin's 'sink' pad -> appsink.
     sc->appsink = gst_element_factory_make("appsink", NULL);
     g_object_set(sc->appsink,
-                 // Set caps
+            // Set caps
                  "caps",
                  caps,
-                 // Fixed size buffer
+            // Fixed size buffer
                  "max-buffers",
                  1,
-                 // drop old buffers when queue is filled
+            // drop old buffers when queue is filled
                  "drop",
                  true,
-                 // terminator
+            // terminator
                  NULL);
     // Lower overhead than new-sample signal.
     GstAppSinkCallbacks callbacks = {0};
@@ -426,7 +435,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
 
     g_autoptr(GstBus) bus = gst_element_get_bus(sc->pipeline);
     // We set this up to inject the EGL context
-    gst_bus_set_sync_handler(bus, (GstBusSyncHandler)bus_sync_handler_cb, sc, NULL);
+    gst_bus_set_sync_handler(bus, (GstBusSyncHandler) bus_sync_handler_cb, sc, NULL);
 
     // This just watches for errors and such
     gst_bus_add_watch(bus, gst_bus_cb, sc->pipeline);
@@ -448,7 +457,7 @@ static void on_drop_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
 }
 
 static void *em_stream_client_thread_func(void *ptr) {
-    EmStreamClient *sc = (EmStreamClient *)ptr;
+    EmStreamClient *sc = (EmStreamClient *) ptr;
 
     ALOGI("%s: running GMainLoop", __FUNCTION__);
     g_main_loop_run(sc->loop);
@@ -484,7 +493,7 @@ void em_stream_client_spawn_thread(EmStreamClient *sc, EmConnection *connection)
     ALOGI("%s: Starting stream client mainloop thread", __FUNCTION__);
     em_stream_client_set_connection(sc, connection);
     int ret = os_thread_helper_start(&sc->play_thread, &em_stream_client_thread_func, sc);
-    (void)ret;
+    (void) ret;
     g_assert(ret == 0);
 }
 
@@ -504,7 +513,8 @@ void em_stream_client_stop(EmStreamClient *sc) {
     sc->pipeline_is_running = false;
 }
 
-struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode_end) {
+struct em_sample *
+em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode_end) {
     if (!sc->appsink) {
         // Not setup yet.
         return NULL;
@@ -522,8 +532,8 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
     }
 
     // Check pipeline
-//    gchar *data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-//    g_free(data);
+//    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+//    g_free(dot_data);
 
     if (sample == NULL) {
         if (gst_app_sink_is_eos(GST_APP_SINK(sc->appsink))) {
@@ -554,9 +564,9 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
     struct em_sc_sample *ret = calloc(1, sizeof(struct em_sc_sample));
 
     GstVideoFrame frame;
-    GstMapFlags flags = (GstMapFlags)(GST_MAP_READ | GST_MAP_GL);
+    GstMapFlags flags = (GstMapFlags) (GST_MAP_READ | GST_MAP_GL);
     gst_video_frame_map(&frame, &info, buffer, flags);
-    ret->base.frame_texture_id = *(GLuint *)frame.data[0];
+    ret->base.frame_texture_id = *(GLuint *) frame.data[0];
 
     if (sc->context == NULL) {
         ALOGI("%s: Retrieving the GStreamer EGL context", __FUNCTION__);
@@ -589,14 +599,15 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
     ret->sample = sample;
 
     // Check pipeline
-//    gchar* data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+//    gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+//    g_free(dot_data);
 
     return ret;
 }
 
 void em_stream_client_release_sample(EmStreamClient *sc, struct em_sample *ems) {
-    struct em_sc_sample *impl = (struct em_sc_sample *)ems;
-    ALOGI("Releasing sample with texture ID %d", ems->frame_texture_id);
+    struct em_sc_sample *impl = (struct em_sc_sample *) ems;
+//    ALOGI("Releasing sample with texture ID %d", ems->frame_texture_id);
     gst_sample_unref(impl->sample);
     free(impl);
 }
