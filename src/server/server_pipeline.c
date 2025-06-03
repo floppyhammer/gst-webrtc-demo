@@ -441,7 +441,6 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         // "filesrc location=test.mp4 ! decodebin ! "
         "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! timeoverlay ! "
         "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
-        "queue ! "
 #ifdef USE_ENCODEBIN
         // zerolatency is not available for some hw encoders
         "encodebin2 profile=\"video/x-h264|element-properties,bitrate=8192\" ! "
@@ -449,9 +448,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "x264enc tune=zerolatency bitrate=8192 ! "
         "video/x-h264,profile=baseline ! "
 #endif
-        "queue ! "
         "h264parse ! "
-	    "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
+        "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96 ! "
         "tee name=%s allow-not-linked=true",
         MY_TEE_NAME);
