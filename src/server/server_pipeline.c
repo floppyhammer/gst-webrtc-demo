@@ -451,7 +451,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 #endif
         "queue ! "
         "h264parse ! "
-        "rtph264pay config-interval=1 ! "
+	    "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96 ! "
         "tee name=%s allow-not-linked=true",
         MY_TEE_NAME);
