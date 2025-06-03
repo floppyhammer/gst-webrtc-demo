@@ -302,7 +302,7 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         g_signal_connect(ws_state.connection, "message", G_CALLBACK(websocket_message_cb), NULL);
 
         ws_state.pipeline = gst_parse_launch(
-            "webrtcbin name=webrtc bundle-policy=max-bundle ! "
+            "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
             "rtph264depay ! "
             "h264parse ! "
             "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
