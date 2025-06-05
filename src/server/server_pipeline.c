@@ -92,9 +92,9 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
     GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
 
     GstCaps* caps = gst_caps_from_string(
-        "application/x-rtp, "
-        "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,profile-level-id=("
-        "string)42e01f");
+        "application/x-rtp,"
+        "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,"
+        "profile-level-id=(string)42e01f");
 
     GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_0", caps);
 
@@ -454,7 +454,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 #endif
         "h264parse ! "
         "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
-        "application/x-rtp,payload=96 ! "
+        "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
         "tee name=%s allow-not-linked=true",
         MY_TEE_NAME);
 
