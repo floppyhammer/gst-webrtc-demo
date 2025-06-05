@@ -64,6 +64,10 @@ static gboolean gst_bus_cb(GstBus* bus, GstMessage* message, gpointer user_data)
         case GST_MESSAGE_EOS: {
             g_error("Got EOS!!");
         } break;
+        case GST_MESSAGE_LATENCY: {
+            g_warning("Handling latency");
+            gst_bin_recalculate_latency(pipeline);
+        } break;
         default:
             break;
     }
