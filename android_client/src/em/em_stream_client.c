@@ -394,9 +394,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     // clang-format off
     gchar *pipeline_string = g_strdup_printf(
         "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
-        "rtph264depay ! "
-        "h264parse name=parser ! "
-        "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
+        "rtph264depay name=depay ! "
         "decodebin3 ! "
 //        "amcviddec-c2qtiavcdecoder ! "        // Hardware
 //        "amcviddec-omxqcomvideodecoderavc ! " // Hardware
@@ -416,7 +414,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
         abort();
     }
 
-    GstPad *pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(sc->pipeline), "parser"), "src");
+    GstPad *pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(sc->pipeline), "depay"), "src");
     gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
     gst_object_unref(pad);
 
