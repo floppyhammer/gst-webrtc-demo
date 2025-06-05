@@ -375,18 +375,20 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
 
     // We'll need an active egl context below before setting up gstgl (as explained previously)
 
+    // clang-format off
     gchar *pipeline_string = g_strdup_printf(
-            "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
-            "rtph264depay ! "
-            "h264parse ! "
-            "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
-            "decodebin3 ! "
-            //        "amcviddec-c2qtiavcdecoder ! "        // Hardware
-            //        "amcviddec-omxqcomvideodecoderavc ! " // Hardware
-            //        "amcviddec-c2androidavcdecoder ! "    // Software
-            //        "amcviddec-omxgoogleh264decoder ! "   // Software
-            //        "video/x-raw(memory:GLMemory),format=(string)RGBA,width=(int)1280,height=(int)720,texture-target=(string)external-oes ! "
-            "glsinkbin name=glsink");
+        "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
+        "rtph264depay ! "
+        "h264parse ! "
+        "video/x-h264,stream-format=(string)byte-stream,alignment=(string)au,parsed=(boolean)true ! "
+        "decodebin3 ! "
+//        "amcviddec-c2qtiavcdecoder ! "        // Hardware
+//        "amcviddec-omxqcomvideodecoderavc ! " // Hardware
+//        "amcviddec-c2androidavcdecoder ! "    // Software
+//        "amcviddec-omxgoogleh264decoder ! "   // Software
+//        "video/x-raw(memory:GLMemory),format=(string)RGBA,width=(int)1280,height=(int)720,texture-target=(string)external-oes ! "
+        "glsinkbin name=glsink");
+    // clang-format on
 
     sc->pipeline = gst_object_ref_sink(gst_parse_launch(pipeline_string, &error));
     if (sc->pipeline == NULL) {
