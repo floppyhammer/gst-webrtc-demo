@@ -107,6 +107,7 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
         g_assert(transceivers != NULL && transceivers->len == 1);
         GstWebRTCRTPTransceiver* trans = g_array_index(transceivers, GstWebRTCRTPTransceiver*, 0);
         g_object_set(trans, "direction", GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY, NULL);
+        g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, "fec-percentage", 20, NULL);
         g_array_unref(transceivers);
     }
 

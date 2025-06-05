@@ -97,7 +97,7 @@ static void signaling_server_handle_message(SignalingServer *server,
         const gchar *msg_type = json_object_get_string_member(msg, "msg");
         if (g_str_equal(msg_type, "answer")) {
             const gchar *answer_sdp = json_object_get_string_member(msg, "sdp");
-            // ALOGD("Received answer:\n %s", answer_sdp);
+            ALOGD("Received answer:\n %s", answer_sdp);
 
             g_signal_emit(server, signals[SIGNAL_SDP_ANSWER], 0, connection, answer_sdp);
         } else if (g_str_equal(msg_type, "candidate")) {
@@ -224,7 +224,7 @@ static void signaling_server_send_to_websocket_client(SignalingServer *server, C
 }
 
 void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
-    // ALOGD("Send offer: %s", sdp);
+    ALOGD("Send offer: %s", sdp);
 
     JsonBuilder *builder = json_builder_new();
     json_builder_begin_object(builder);
