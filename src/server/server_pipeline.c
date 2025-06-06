@@ -435,6 +435,22 @@ void gstAndroidLog(GstDebugCategory* category,
 
 #define U_TYPED_CALLOC(TYPE) ((TYPE*)calloc(1, sizeof(TYPE)))
 
+static GstPadProbeReturn buffer_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
+    if (info->type & GST_PAD_PROBE_TYPE_BUFFER) {
+        GstBuffer* buf = GST_PAD_PROBE_INFO_BUFFER(info);
+        GstClockTime pts = GST_BUFFER_PTS(buf);
+
+        static GstClockTime previous_pts = 0;
+        static int64_t previous_time = 0;
+        if (previous_pts != 0) {
+            int64_t pts_diff = (pts - previous_pts) / 1e6;
+            ALOGD("Received frame PTS: %" GST_TIME_FORMAT ", PTS diff: %ld", GST_TIME_ARGS(pts), pts_diff);
+        }
+        previous_pts = pts;
+    }
+    return GST_PAD_PROBE_OK;
+}
+
 void server_pipeline_create(struct MyGstData** out_gst_data) {
     GError* error = NULL;
 
@@ -443,7 +459,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // Setup pipeline
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
-        // "filesrc location=test.mp4 ! decodebin ! "
+        // "filesrc location=test.mp4 ! decodebin3 ! "
         "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! timeoverlay ! "
         "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
 #ifdef USE_ENCODEBIN
@@ -453,7 +469,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "x264enc tune=zerolatency bitrate=8192 ! "
         "video/x-h264,profile=baseline ! "
 #endif
-        "h264parse ! "
+        "h264parse name=parser ! "
         "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
         "tee name=%s allow-not-linked=true",
@@ -484,6 +500,10 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     g_assert_no_error(error);
     g_free(pipeline_str);
 
+    GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "parser"), "src");
+    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
+    gst_object_unref(pad);
+
     GstBus* bus = gst_element_get_bus(pipeline);
     gst_bus_add_watch(bus, gst_bus_cb, mgd);
     gst_object_unref(bus);
@@ -499,7 +519,6 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
 void server_pipeline_dump(struct MyGstData* mgd) {
     // GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
-    gchar* data = gst_debug_bin_to_dot_data(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    int _ = 0;
-    // ALOGD("%s", data);
+    gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    g_free(dot_data);
 }
