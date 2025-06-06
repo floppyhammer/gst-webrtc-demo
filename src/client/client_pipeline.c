@@ -287,6 +287,10 @@ out:
     g_object_unref(parser);
 }
 
+static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *trans) {
+    g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
+}
+
 static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer user_data) {
     GError *error = NULL;
 
@@ -315,6 +319,7 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         // Connect callbacks on sinks
         g_signal_connect(ws_state.webrtcbin, "on-data-channel", G_CALLBACK(webrtc_on_data_channel_cb), NULL);
         g_signal_connect(ws_state.webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
+        g_signal_connect(ws_state.webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
         // Incoming streams will be exposed via this signal
         g_signal_connect(ws_state.webrtcbin, "pad-added", G_CALLBACK(on_incoming_stream), NULL);
 

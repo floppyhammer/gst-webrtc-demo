@@ -21,6 +21,7 @@
 #include <gst/gstsample.h>
 #include <gst/gstutils.h>
 #include <gst/video/video-frame.h>
+#include <gst/webrtc/webrtc.h>
 
 #include "em_app_log.h"
 #include "em_connection.h"
@@ -365,6 +366,10 @@ static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpo
     return GST_PAD_PROBE_OK;
 }
 
+static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *trans) {
+    g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
+}
+
 static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     g_info("%s", __FUNCTION__);
     g_assert_nonnull(sc);
@@ -417,6 +422,10 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     GstPad *pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(sc->pipeline), "depay"), "src");
     gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
     gst_object_unref(pad);
+
+    GstElement *webrtcbin = gst_bin_get_by_name(GST_BIN(sc->pipeline), "webrtc");
+    g_signal_connect(webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
+    gst_object_unref(webrtcbin);
 
     // We convert the string SINK_CAPS above into a GstCaps that elements below can understand.
     // the "video/x-raw(" GST_CAPS_FEATURE_MEMORY_GL_MEMORY ")," part of the caps is read :
