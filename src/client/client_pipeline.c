@@ -116,6 +116,8 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer data) {
             gchar *debug_msg;
             gst_message_parse_error(message, &gerr, &debug_msg);
             GST_DEBUG_BIN_TO_DOT_FILE(pipeline, GST_DEBUG_GRAPH_SHOW_ALL, "mss-pipeline-ERROR");
+            gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+            g_free(dot_data);
             g_error("Error: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
@@ -187,14 +189,80 @@ static void webrtc_on_ice_candidate_cb(GstElement *webrtcbin, guint mlineindex, 
     g_object_unref(builder);
 }
 
-static void on_incoming_stream(GstElement *webrtc, GstPad *pad, gpointer user_data) {
-    g_print("Got incoming stream\n");
+static void handle_media_stream(GstPad *pad, GstElement *pipeline, const char *convert_name, const char *sink_name) {
+    gst_println("Trying to handle stream with %s ! %s", convert_name, sink_name);
 
-    if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) return;
+    GstElement *q = gst_element_factory_make("queue", NULL);
+    g_assert_nonnull(q);
+    GstElement *conv = gst_element_factory_make(convert_name, NULL);
+    g_assert_nonnull(conv);
+    GstElement *sink = gst_element_factory_make(sink_name, NULL);
+    g_assert_nonnull(sink);
+
+    if (g_strcmp0(convert_name, "audioconvert") == 0) {
+        /* Might also need to resample, so add it just in case.
+         * Will be a no-op if it's not required. */
+        GstElement *resample = gst_element_factory_make("audioresample", NULL);
+        g_assert_nonnull(resample);
+        gst_bin_add_many(GST_BIN(pipeline), q, conv, resample, sink, NULL);
+        gst_element_sync_state_with_parent(q);
+        gst_element_sync_state_with_parent(conv);
+        gst_element_sync_state_with_parent(resample);
+        gst_element_sync_state_with_parent(sink);
+        gst_element_link_many(q, conv, resample, sink, NULL);
+    } else {
+        gst_bin_add_many(GST_BIN(pipeline), q, conv, sink, NULL);
+        gst_element_sync_state_with_parent(q);
+        gst_element_sync_state_with_parent(conv);
+        gst_element_sync_state_with_parent(sink);
+        gst_element_link_many(q, conv, sink, NULL);
+    }
+
+    GstPad *qpad = gst_element_get_static_pad(q, "sink");
+
+    GstPadLinkReturn ret = gst_pad_link(pad, qpad);
+    g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
+
+    gst_object_unref(qpad);
+}
+
+static void on_incoming_decodebin_stream(GstElement *webrtc, GstPad *pad, GstElement *pipeline) {
+    g_print("Got incoming decodebin stream\n");
+
+    if (!gst_pad_has_current_caps(pad)) {
+        gst_printerr("Pad '%s' has no caps, can't do anything, ignoring\n", GST_PAD_NAME(pad));
+        return;
+    }
 
     GstCaps *caps = gst_pad_get_current_caps(pad);
+    const gchar *name = gst_structure_get_name(gst_caps_get_structure(caps, 0));
+
     gchar *str = gst_caps_serialize(caps, 0);
     g_print("Pad caps: %s\n", str);
+    g_free(str);
+
+    if (g_str_has_prefix(name, "video")) {
+        handle_media_stream(pad, pipeline, "videoconvert", "autovideosink");
+    } else if (g_str_has_prefix(name, "audio")) {
+        handle_media_stream(pad, pipeline, "audioconvert", "autoaudiosink");
+    } else {
+        gst_printerr("Unknown pad %s, ignoring", GST_PAD_NAME(pad));
+    }
+}
+
+static void on_incoming_stream(GstElement *webrtc, GstPad *pad, GstElement *pipeline) {
+    if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
+        return;
+    }
+
+    GstElement *decodebin = gst_element_factory_make("decodebin", NULL);
+    g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_incoming_decodebin_stream), pipeline);
+    gst_bin_add(GST_BIN(pipeline), decodebin);
+    gst_element_sync_state_with_parent(decodebin);
+
+    GstPad *sink_pad = gst_element_get_static_pad(decodebin, "sink");
+    gst_pad_link(pad, sink_pad);
+    gst_object_unref(sink_pad);
 }
 
 static void on_answer_created(GstPromise *promise, gpointer user_data) {
@@ -291,6 +359,12 @@ static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *tran
     g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
 }
 
+// This is the gstwebrtc entry point where we create the offer and so on.
+// It will be called when the pipeline goes to PLAYING.
+static void on_negotiation_needed(GstElement *element, gpointer user_data) {
+    // Pass
+}
+
 static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer user_data) {
     GError *error = NULL;
 
@@ -305,23 +379,23 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
 
         g_signal_connect(ws_state.connection, "message", G_CALLBACK(websocket_message_cb), NULL);
 
-        ws_state.pipeline = gst_parse_launch(
-            "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
-            "rtph264depay ! "
-            "avdec_h264 ! " // sudo apt install gstreamer1.0-libav
-            // "decodebin3 ! " // Doesn't work on Linux
-            "autovideosink",
-            &error);
-        g_assert_no_error(error);
+        ws_state.pipeline = gst_pipeline_new("webrtc-recv-pipeline");
 
-        ws_state.webrtcbin = gst_bin_get_by_name(GST_BIN(ws_state.pipeline), "webrtc");
+        ws_state.webrtcbin = gst_element_factory_make("webrtcbin", NULL);
+        // Matching this to the offerer's bundle policy is necessary for negotiation
+        g_object_set(ws_state.webrtcbin, "bundle-policy", GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE, NULL);
+        g_object_set(ws_state.webrtcbin, "latency", 0, NULL);
+
+        gst_bin_add_many(GST_BIN(ws_state.pipeline), ws_state.webrtcbin, NULL);
 
         // Connect callbacks on sinks
+
+        g_signal_connect(ws_state.webrtcbin, "on-negotiation-needed", G_CALLBACK(on_negotiation_needed), NULL);
         g_signal_connect(ws_state.webrtcbin, "on-data-channel", G_CALLBACK(webrtc_on_data_channel_cb), NULL);
         g_signal_connect(ws_state.webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
         g_signal_connect(ws_state.webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
         // Incoming streams will be exposed via this signal
-        g_signal_connect(ws_state.webrtcbin, "pad-added", G_CALLBACK(on_incoming_stream), NULL);
+        g_signal_connect(ws_state.webrtcbin, "pad-added", G_CALLBACK(on_incoming_stream), ws_state.pipeline);
 
         GstBus *bus = gst_element_get_bus(ws_state.pipeline);
         gst_bus_add_watch(bus, gst_bus_cb, ws_state.pipeline);

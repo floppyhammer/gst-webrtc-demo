@@ -18,7 +18,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define MY_TEE_NAME "my_tee"
+#define AUDIO_TEE_NAME "audio_tee"
+#define VIDEO_TEE_NAME "video_tee"
 
 // Use encodebin instead of x264enc
 #define USE_ENCODEBIN
@@ -86,35 +87,65 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
     GstElement* pipeline = GST_ELEMENT(gst_element_get_parent(webrtcbin));
     if (pipeline == NULL) return;
 
-    GstElement* tee = gst_bin_get_by_name(GST_BIN(pipeline), MY_TEE_NAME);
-    GstPad* src_pad = gst_element_request_pad_simple(tee, "src_%u");
+    {
+        GstElement* tee = gst_bin_get_by_name(GST_BIN(pipeline), VIDEO_TEE_NAME);
+        GstPad* src_pad = gst_element_request_pad_simple(tee, "src_%u");
 
-    GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
+        GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
 
-    GstCaps* caps = gst_caps_from_string(
-        "application/x-rtp,"
-        "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,"
-        "profile-level-id=(string)42e01f");
+        GstCaps* caps = gst_caps_from_string(
+            "application/x-rtp,"
+            "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,"
+            "profile-level-id=(string)42e01f");
 
-    GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_0", caps);
+        GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_0", caps);
 
-    GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
-    g_assert(ret == GST_PAD_LINK_OK);
+        GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
+        g_assert(ret == GST_PAD_LINK_OK);
+
+        gst_caps_unref(caps);
+        gst_object_unref(src_pad);
+        gst_object_unref(sink_pad);
+        gst_object_unref(tee);
+    }
+
+    {
+        GstElement* tee = gst_bin_get_by_name(GST_BIN(pipeline), AUDIO_TEE_NAME);
+        GstPad* src_pad = gst_element_request_pad_simple(tee, "src_%u");
+
+        GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
+
+        GstCaps* caps =
+            gst_caps_from_string("application/x-rtp,payload=127,encoding-name=OPUS,clock-rate=48000,media=audio");
+
+        GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_1", caps);
+
+        GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
+        g_assert(ret == GST_PAD_LINK_OK);
+
+        gst_caps_unref(caps);
+        gst_object_unref(src_pad);
+        gst_object_unref(sink_pad);
+        gst_object_unref(tee);
+    }
 
     {
         GArray* transceivers;
         g_signal_emit_by_name(webrtcbin, "get-transceivers", &transceivers);
-        g_assert(transceivers != NULL && transceivers->len == 1);
-        GstWebRTCRTPTransceiver* trans = g_array_index(transceivers, GstWebRTCRTPTransceiver*, 0);
-        g_object_set(trans, "direction", GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY, NULL);
-        g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, "fec-percentage", 20, NULL);
+        g_assert(transceivers != NULL);
+
+        for (int idx = 0; idx < transceivers->len; idx++) {
+            GstWebRTCRTPTransceiver* trans = g_array_index(transceivers, GstWebRTCRTPTransceiver*, idx);
+            g_object_set(trans, "direction", GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY, NULL);
+            g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, "fec-percentage", 20, NULL);
+        }
+
         g_array_unref(transceivers);
     }
 
-    gst_caps_unref(caps);
-    gst_object_unref(src_pad);
-    gst_object_unref(sink_pad);
-    gst_object_unref(tee);
+    // gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    // g_free(dot_data);
+
     gst_object_unref(pipeline);
 
     ALOGD("Linked webrtcbin to tee");
@@ -459,6 +490,12 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // Setup pipeline
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
+        // Audio
+        "audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! "
+        "queue ! opusenc perfect-timestamp=true ! rtpopuspay ! "
+        "application/x-rtp,encoding-name=OPUS,payload=127,ssrc=(uint)3484078953 ! queue ! tee name=%s "
+        "allow-not-linked=true "
+        // Video
         // "filesrc location=test.mp4 ! decodebin3 ! "
         "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! timeoverlay ! "
         "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
@@ -473,7 +510,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
         "tee name=%s allow-not-linked=true",
-        MY_TEE_NAME);
+        AUDIO_TEE_NAME,
+        VIDEO_TEE_NAME);
 
     // No webrtc bin yet until later!
 
@@ -489,6 +527,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
         gst_debug_set_default_threshold(GST_LEVEL_WARNING);
         gst_debug_set_threshold_for_name("encodebin2", GST_LEVEL_INFO);
+        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_INFO);
+        gst_debug_set_threshold_for_name("fec", GST_LEVEL_INFO);
         //        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
         //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }
