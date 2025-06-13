@@ -66,7 +66,6 @@ static gboolean gst_bus_cb(GstBus* bus, GstMessage* message, gpointer user_data)
             g_error("Got EOS!!");
         } break;
         case GST_MESSAGE_LATENCY: {
-            g_warning("Handling latency");
             gst_bin_recalculate_latency(pipeline);
         } break;
         default:
@@ -491,13 +490,19 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
         // Audio
-        "audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! "
-        "queue ! opusenc perfect-timestamp=true ! rtpopuspay ! "
-        "application/x-rtp,encoding-name=OPUS,payload=127,ssrc=(uint)3484078953 ! queue ! tee name=%s "
-        "allow-not-linked=true "
+        "audiotestsrc is-live=true wave=red-noise ! "
+        "audioconvert ! "
+        "audioresample ! "
+        "queue ! "
+        "opusenc perfect-timestamp=true ! "
+        "rtpopuspay ! "
+        "application/x-rtp,encoding-name=OPUS,payload=127,ssrc=(uint)3484078953 ! "
+        "queue ! "
+        "tee name=%s allow-not-linked=true "
         // Video
         // "filesrc location=test.mp4 ! decodebin3 ! "
-        "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! timeoverlay ! "
+        "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
+        "timeoverlay ! "
         "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
 #ifdef USE_ENCODEBIN
         // zerolatency is not available for some hw encoders

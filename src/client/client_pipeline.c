@@ -234,12 +234,18 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, GstElemen
 
     g_print("Hit on_decodebin_pad_added\n");
 
-    if (!gst_pad_has_current_caps(pad)) {
-        gst_printerr("Pad '%s' has no caps, can't do anything, ignoring\n", GST_PAD_NAME(pad));
-        return;
+    GstCaps *caps = NULL;
+
+    if (gst_pad_has_current_caps(pad)) {
+        caps = gst_pad_get_current_caps(pad);
+    } else {
+        gst_print("Pad '%s' has no caps, use gst_pad_get_stream to get caps\n", GST_PAD_NAME(pad));
+
+        GstStream *stream = gst_pad_get_stream(pad);
+
+        caps = gst_stream_get_caps(stream);
     }
 
-    GstCaps *caps = gst_pad_get_current_caps(pad);
     const gchar *name = gst_structure_get_name(gst_caps_get_structure(caps, 0));
 
     gchar *str = gst_caps_serialize(caps, 0);
@@ -273,19 +279,13 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, GstElemen
         gst_caps_unref(caps);
     }
 
-    GstElement *decodebin = gst_element_factory_make("decodebin", NULL);
+    GstElement *decodebin = gst_element_factory_make("decodebin3", NULL);
     g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_decodebin_pad_added), pipeline);
     gst_bin_add(GST_BIN(pipeline), decodebin);
 
     gst_element_sync_state_with_parent(decodebin);
 
     GstPad *sink_pad = gst_element_get_static_pad(decodebin, "sink");
-
-    // GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(decodebin), "sink_%u");
-    // GstCaps* caps = gst_caps_from_string(
-    //     "video/x-raw(memory:CUDAMemory), format=(string)NV12, width=(int)1280, height=(int)720,
-    //     interlace-mode=(string)progressive, multiview-mode=(string)mono");
-    // GstPad* sink_pad = gst_element_request_pad_simple(decodebin, "sink_%u");
 
     GstPadLinkReturn ret = gst_pad_link(pad, sink_pad);
     g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
