@@ -432,7 +432,7 @@ void server_pipeline_stop(struct MyGstData* mgd) {
     ALOGD("Sending EOS");
     gst_element_send_event(mgd->pipeline, gst_event_new_eos());
 
-    // Wait for EOS message on the pipeline bus.
+    // Wait for an EOS message on the pipeline bus.
     ALOGD("Waiting for EOS");
     GstMessage* msg = NULL;
     msg = gst_bus_timed_pop_filtered(GST_ELEMENT_BUS(mgd->pipeline),

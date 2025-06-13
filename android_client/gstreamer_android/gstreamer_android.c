@@ -31,6 +31,7 @@ GST_PLUGIN_STATIC_DECLARE(playback); // "FFMPEG "
 GST_PLUGIN_STATIC_DECLARE(audioconvert);
 GST_PLUGIN_STATIC_DECLARE(audioresample);
 GST_PLUGIN_STATIC_DECLARE(opensles);
+GST_PLUGIN_STATIC_DECLARE(opus);
 /* Declaration of static gio modules */
 
 /* Call this function to load GIO modules */
@@ -77,5 +78,6 @@ void gst_init_static_plugins(void) {
     GST_PLUGIN_STATIC_REGISTER(audioconvert);
     GST_PLUGIN_STATIC_REGISTER(audioresample);
     GST_PLUGIN_STATIC_REGISTER(opensles);
+    GST_PLUGIN_STATIC_REGISTER(opus);
     gst_android_load_gio_modules();
 }
