@@ -378,27 +378,17 @@ static void emconn_webrtc_prepare_data_channel_cb(GstElement *webrtc,
                                                   GObject *data_channel,
                                                   gboolean is_local,
                                                   EmConnection *emconn) {
-    ALOGI("preparing data channel");
+    ALOGI("Preparing data channel");
 
     g_signal_connect(data_channel, "on-close", G_CALLBACK(emconn_data_channel_close_cb), emconn);
     g_signal_connect(data_channel, "on-error", G_CALLBACK(emconn_data_channel_error_cb), emconn);
     g_signal_connect(data_channel, "on-message-string", G_CALLBACK(emconn_data_channel_message_string_cb), emconn);
 }
 
-static void emconn_webrtc_on_incoming_stream(GstElement *webrtc, GstPad *pad, gpointer user_data) {
-    ALOGI("Got incoming stream");
-
-    if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) return;
-
-    GstCaps *caps = gst_pad_get_current_caps(pad);
-    gchar *str = gst_caps_serialize(caps, 0);
-    ALOGI("Pad caps: %s", str);
-}
-
 static void emconn_webrtc_on_data_channel_cb(GstElement *webrtcbin,
                                              GstWebRTCDataChannel *data_channel,
                                              EmConnection *emconn) {
-    ALOGI("Successfully created datachannel");
+    ALOGI("Successfully created data channel");
 
     g_assert_null(emconn->datachannel);
 
@@ -627,7 +617,6 @@ void em_connection_set_pipeline(EmConnection *emconn, GstPipeline *pipeline) {
 
     emconn_update_status(emconn, EM_STATUS_NEGOTIATING);
 
-    ALOGI("getting webrtcbin");
     emconn->webrtcbin = gst_bin_get_by_name(GST_BIN(emconn->pipeline), "webrtc");
     g_assert_nonnull(emconn->webrtcbin);
     g_assert(G_IS_OBJECT(emconn->webrtcbin));
@@ -636,8 +625,6 @@ void em_connection_set_pipeline(EmConnection *emconn, GstPipeline *pipeline) {
                      "prepare-data-channel",
                      G_CALLBACK(emconn_webrtc_prepare_data_channel_cb),
                      emconn);
-    // Incoming streams will be exposed via this signal
-    g_signal_connect(emconn->webrtcbin, "pad-added", G_CALLBACK(emconn_webrtc_on_incoming_stream), NULL);
     g_signal_connect(emconn->webrtcbin, "on-data-channel", G_CALLBACK(emconn_webrtc_on_data_channel_cb), emconn);
     g_signal_connect(emconn->webrtcbin,
                      "deep-notify::connection-state",
@@ -690,7 +677,9 @@ void em_connection_connect(EmConnection *emconn) {
 }
 
 void em_connection_disconnect(EmConnection *emconn) {
-    emconn_disconnect_internal(emconn, EM_STATUS_IDLE_NOT_CONNECTED);
+    if (emconn) {
+        emconn_disconnect_internal(emconn, EM_STATUS_IDLE_NOT_CONNECTED);
+    }
 }
 
 bool em_connection_send_bytes(EmConnection *emconn, GBytes *bytes) {

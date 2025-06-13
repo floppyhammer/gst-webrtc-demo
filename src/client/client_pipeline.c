@@ -236,14 +236,17 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, GstElemen
 
     GstCaps *caps = NULL;
 
+    // For using decodebin
     if (gst_pad_has_current_caps(pad)) {
         caps = gst_pad_get_current_caps(pad);
-    } else {
+    }
+    // For using decodebin3
+    else {
         gst_print("Pad '%s' has no caps, use gst_pad_get_stream to get caps\n", GST_PAD_NAME(pad));
 
         GstStream *stream = gst_pad_get_stream(pad);
-
         caps = gst_stream_get_caps(stream);
+        gst_clear_object(&stream);
     }
 
     const gchar *name = gst_structure_get_name(gst_caps_get_structure(caps, 0));

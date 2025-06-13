@@ -302,7 +302,7 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
             g_free(debug_msg);
         } break;
         case GST_MESSAGE_EOS: {
-            g_error("gst_bus_cb: Got EOS!!");
+            g_error("gst_bus_cb: Got EOS!");
         } break;
         default:
             break;
@@ -398,12 +398,14 @@ static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char 
         GstElement *glsinkbin = gst_element_factory_make("glsinkbin", NULL);
         gst_bin_add_many(GST_BIN(sc->pipeline), glsinkbin, NULL);
 
-        GstPad *sink_pad = gst_element_get_static_pad(glsinkbin, "sink");
+        gst_element_sync_state_with_parent(glsinkbin);
 
-        gst_pad_link(src_pad, sink_pad);
+        GstPad *sink_pad = gst_element_get_static_pad(glsinkbin, "sink");
+        GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
+        g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
         gst_object_unref(sink_pad);
 
-        // Set custom appsink of the glsinkbin
+        // Set a custom appsink for glsinkbin
         {
             // We convert the string SINK_CAPS above into a GstCaps that elements below can understand.
             // the "video/x-raw(" GST_CAPS_FEATURE_MEMORY_GL_MEMORY ")," part of the caps is read :
@@ -426,13 +428,14 @@ static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char 
                          // Fixed size buffer
                          "max-buffers",
                          1,
-                         // drop old buffers when queue is filled
+                         // Drop old buffers when queue is filled
                          "drop",
                          true,
-                         // terminator
+                         // Terminator
                          NULL);
+
             // Lower overhead than new-sample signal.
-            GstAppSinkCallbacks callbacks = {0};
+            GstAppSinkCallbacks callbacks = {};
             callbacks.new_sample = on_new_sample_cb;
             gst_app_sink_set_callbacks(GST_APP_SINK(sc->appsink), &callbacks, sc, NULL);
             sc->received_first_frame = false;
@@ -448,14 +451,23 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, EmStreamC
         return;
     }
 
-    g_print("Got incoming decodebin stream\n");
+    g_print("Hit on_decodebin_pad_added\n");
 
-    if (!gst_pad_has_current_caps(pad)) {
-        gst_printerr("Pad '%s' has no caps, can't do anything, ignoring\n", GST_PAD_NAME(pad));
-        return;
+    GstCaps *caps = NULL;
+
+    // For using decodebin
+    if (gst_pad_has_current_caps(pad)) {
+        caps = gst_pad_get_current_caps(pad);
+    }
+    // For using decodebin3
+    else {
+        gst_print("Pad '%s' has no caps, use gst_pad_get_stream to get caps\n", GST_PAD_NAME(pad));
+
+        GstStream *stream = gst_pad_get_stream(pad);
+        caps = gst_stream_get_caps(stream);
+        gst_clear_object(&stream);
     }
 
-    GstCaps *caps = gst_pad_get_current_caps(pad);
     const gchar *name = gst_structure_get_name(gst_caps_get_structure(caps, 0));
 
     gchar *str = gst_caps_serialize(caps, 0);
@@ -465,19 +477,19 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, EmStreamC
     if (g_str_has_prefix(name, "video")) {
         handle_media_stream(pad, sc, "videoconvert", "autovideosink");
     } else if (g_str_has_prefix(name, "audio")) {
-        handle_media_stream(pad, sc, "audioconvert", "autoaudiosink");
+        handle_media_stream(pad, sc, "audioconvert", "openslessink");
     } else {
         gst_printerr("Unknown pad %s, ignoring", GST_PAD_NAME(pad));
     }
 }
 
-static void on_webrtcbin_pad_added(GstElement *webrtc, GstPad *pad, EmStreamClient *sc) {
+static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, EmStreamClient *sc) {
     // We don't care about sink pads
     if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
         return;
     }
 
-    g_print("Got incoming stream\n");
+    g_print("Hit on_webrtcbin_pad_added\n");
 
     GstCaps *caps = gst_pad_get_current_caps(pad);
     gchar *str = gst_caps_serialize(caps, 0);
@@ -492,7 +504,7 @@ static void on_webrtcbin_pad_added(GstElement *webrtc, GstPad *pad, EmStreamClie
 
     gst_caps_unref(caps);
 
-    GstElement *decodebin = gst_element_factory_make("decodebin", NULL);
+    GstElement *decodebin = gst_element_factory_make("decodebin3", NULL);
     g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_decodebin_pad_added), sc);
     gst_bin_add(GST_BIN(sc->pipeline), decodebin);
     gst_element_sync_state_with_parent(decodebin);

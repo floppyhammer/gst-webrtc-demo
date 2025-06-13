@@ -7,6 +7,7 @@ target_link_libraries(
 	gstreamer_android
 	PRIVATE
 		${GST_LIBRARIES}
+		OpenSLES
 		-Wl,--whole-archive
 		${GST_ARCH_DIR}/lib/libgstreamer-1.0.a
 		-Wl,--no-whole-archive
