@@ -540,9 +540,9 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     g_assert_no_error(error);
     g_free(pipeline_str);
 
-    GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "parser"), "src");
-    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
-    gst_object_unref(pad);
+    // GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "parser"), "src");
+    // gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
+    // gst_object_unref(pad);
 
     GstBus* bus = gst_element_get_bus(pipeline);
     gst_bus_add_watch(bus, gst_bus_cb, mgd);

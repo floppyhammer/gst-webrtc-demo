@@ -226,8 +226,13 @@ static void handle_media_stream(GstPad *pad, GstElement *pipeline, const char *c
     gst_object_unref(qpad);
 }
 
-static void on_incoming_decodebin_stream(GstElement *webrtc, GstPad *pad, GstElement *pipeline) {
-    g_print("Got incoming decodebin stream\n");
+static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, GstElement *pipeline) {
+    // We don't care about sink pads
+    if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
+        return;
+    }
+
+    g_print("Hit on_decodebin_pad_added\n");
 
     if (!gst_pad_has_current_caps(pad)) {
         gst_printerr("Pad '%s' has no caps, can't do anything, ignoring\n", GST_PAD_NAME(pad));
@@ -238,8 +243,10 @@ static void on_incoming_decodebin_stream(GstElement *webrtc, GstPad *pad, GstEle
     const gchar *name = gst_structure_get_name(gst_caps_get_structure(caps, 0));
 
     gchar *str = gst_caps_serialize(caps, 0);
-    g_print("Pad caps: %s\n", str);
+    g_print("decodebin pad caps: %s\n", str);
     g_free(str);
+
+    gst_caps_unref(caps);
 
     if (g_str_has_prefix(name, "video")) {
         handle_media_stream(pad, pipeline, "videoconvert", "autovideosink");
@@ -250,18 +257,38 @@ static void on_incoming_decodebin_stream(GstElement *webrtc, GstPad *pad, GstEle
     }
 }
 
-static void on_incoming_stream(GstElement *webrtc, GstPad *pad, GstElement *pipeline) {
+static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, GstElement *pipeline) {
+    // We don't care about sink pads
     if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
         return;
     }
 
+    g_print("Hit on_webrtcbin_pad_added\n");
+
+    {
+        GstCaps *caps = gst_pad_get_current_caps(pad);
+        gchar *str = gst_caps_serialize(caps, 0);
+        g_print("webrtcbin pad caps: %s\n", str);
+        g_free(str);
+        gst_caps_unref(caps);
+    }
+
     GstElement *decodebin = gst_element_factory_make("decodebin", NULL);
-    g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_incoming_decodebin_stream), pipeline);
+    g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_decodebin_pad_added), pipeline);
     gst_bin_add(GST_BIN(pipeline), decodebin);
+
     gst_element_sync_state_with_parent(decodebin);
 
     GstPad *sink_pad = gst_element_get_static_pad(decodebin, "sink");
-    gst_pad_link(pad, sink_pad);
+
+    // GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(decodebin), "sink_%u");
+    // GstCaps* caps = gst_caps_from_string(
+    //     "video/x-raw(memory:CUDAMemory), format=(string)NV12, width=(int)1280, height=(int)720,
+    //     interlace-mode=(string)progressive, multiview-mode=(string)mono");
+    // GstPad* sink_pad = gst_element_request_pad_simple(decodebin, "sink_%u");
+
+    GstPadLinkReturn ret = gst_pad_link(pad, sink_pad);
+    g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
     gst_object_unref(sink_pad);
 }
 
@@ -395,7 +422,7 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         g_signal_connect(ws_state.webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
         g_signal_connect(ws_state.webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
         // Incoming streams will be exposed via this signal
-        g_signal_connect(ws_state.webrtcbin, "pad-added", G_CALLBACK(on_incoming_stream), ws_state.pipeline);
+        g_signal_connect(ws_state.webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), ws_state.pipeline);
 
         GstBus *bus = gst_element_get_bus(ws_state.pipeline);
         gst_bus_add_watch(bus, gst_bus_cb, ws_state.pipeline);

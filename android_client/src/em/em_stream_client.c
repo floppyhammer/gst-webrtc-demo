@@ -68,8 +68,7 @@ typedef void *(*os_run_func_t)(void *);
  *
  * @public @memberof os_thread_helper
  */
-static inline int
-os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t func, void *ptr) {
+static inline int os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t func, void *ptr) {
     pthread_mutex_lock(&oth->mutex);
 
     g_assert(oth->initialized);
@@ -167,7 +166,7 @@ struct _EmStreamClient {
 };
 
 // clang-format off
-#define SINK_CAPS \
+#define VIDEO_SINK_CAPS \
     "video/x-raw(" GST_CAPS_FEATURE_MEMORY_GL_MEMORY "), "              \
     "format = (string) RGBA, "                                          \
     "width = " GST_VIDEO_SIZE_RANGE ", "                                \
@@ -204,8 +203,7 @@ static void em_stream_client_init(EmStreamClient *sc) {
     ALOGI("%s: done creating stuff", __FUNCTION__);
 }
 
-void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EGLDisplay display,
-                                      EGLSurface surface) {
+void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EGLDisplay display, EGLSurface surface) {
     ALOGI("Wrapping egl context");
 
     sc->egl.display = display;
@@ -217,8 +215,7 @@ void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EG
     GstGLAPI gl_api = gst_gl_context_get_current_gl_api(egl_platform, NULL, NULL);
     sc->gst_gl_display = g_object_ref_sink(gst_gl_display_new());
     sc->android_main_context = g_object_ref_sink(
-            gst_gl_context_new_wrapped(sc->gst_gl_display, android_main_egl_context_handle,
-                                       egl_platform, gl_api));
+        gst_gl_context_new_wrapped(sc->gst_gl_display, android_main_egl_context_handle, egl_platform, gl_api));
 }
 
 static void em_stream_client_dispose(EmStreamClient *self) {
@@ -293,8 +290,7 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
             g_error("gst_bus_cb: Error: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
-        }
-            break;
+        } break;
         case GST_MESSAGE_WARNING: {
             GError *gerr = NULL;
             gchar *debug_msg = NULL;
@@ -304,12 +300,10 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
             g_warning("gst_bus_cb: Warning: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
-        }
-            break;
+        } break;
         case GST_MESSAGE_EOS: {
             g_error("gst_bus_cb: Got EOS!!");
-        }
-            break;
+        } break;
         default:
             break;
     }
@@ -317,7 +311,7 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
 }
 
 static GstFlowReturn on_new_sample_cb(GstAppSink *appsink, gpointer user_data) {
-    EmStreamClient *sc = (EmStreamClient *) user_data;
+    EmStreamClient *sc = (EmStreamClient *)user_data;
 
     // TODO record the frame ID, get frame pose
     struct timespec ts;
@@ -367,7 +361,145 @@ static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpo
 }
 
 static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *trans) {
+    g_print("Hit on_new_transceiver\n");
     g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
+}
+
+static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char *convert_name, const char *sink_name) {
+    gst_println("Trying to handle stream with %s ! %s", convert_name, sink_name);
+
+    if (g_strcmp0(convert_name, "audioconvert") == 0) {
+        GstElement *q = gst_element_factory_make("queue", NULL);
+        g_assert_nonnull(q);
+        GstElement *conv = gst_element_factory_make(convert_name, NULL);
+        g_assert_nonnull(conv);
+        GstElement *sink = gst_element_factory_make(sink_name, NULL);
+        g_assert_nonnull(sink);
+
+        /* Might also need to resample, so add it just in case.
+         * Will be a no-op if it's not required. */
+        GstElement *resample = gst_element_factory_make("audioresample", NULL);
+        g_assert_nonnull(resample);
+        gst_bin_add_many(GST_BIN(sc->pipeline), q, conv, resample, sink, NULL);
+        gst_element_sync_state_with_parent(q);
+        gst_element_sync_state_with_parent(conv);
+        gst_element_sync_state_with_parent(resample);
+        gst_element_sync_state_with_parent(sink);
+        gst_element_link_many(q, conv, resample, sink, NULL);
+
+        GstPad *qpad = gst_element_get_static_pad(q, "sink");
+
+        GstPadLinkReturn ret = gst_pad_link(src_pad, qpad);
+        g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
+
+        gst_object_unref(qpad);
+    } else {
+        // Create & Link glsinkbin
+        GstElement *glsinkbin = gst_element_factory_make("glsinkbin", NULL);
+        gst_bin_add_many(GST_BIN(sc->pipeline), glsinkbin, NULL);
+
+        GstPad *sink_pad = gst_element_get_static_pad(glsinkbin, "sink");
+
+        gst_pad_link(src_pad, sink_pad);
+        gst_object_unref(sink_pad);
+
+        // Set custom appsink of the glsinkbin
+        {
+            // We convert the string SINK_CAPS above into a GstCaps that elements below can understand.
+            // the "video/x-raw(" GST_CAPS_FEATURE_MEMORY_GL_MEMORY ")," part of the caps is read :
+            // video/x-raw(memory:GLMemory) and is really important for getting zero-copy gl textures.
+            // It tells the pipeline (especially the decoder) that an internal android:Surface should
+            // get created internally (using the provided gstgl contexts above) so that the appsink
+            // can basically pull the samples out using an GLConsumer (this is just for context, as
+            // all of those constructs will be hidden from you, but are turned on by that CAPS).
+            g_autoptr(GstCaps) caps = gst_caps_from_string(VIDEO_SINK_CAPS);
+
+            // FRED: We create the appsink 'manually' here because glsink's ALREADY a sink and so if we stick
+            //       glsinkbin ! appsink in our pipeline_string for automatic linking, gst_parse will NOT like this,
+            //       as glsinkbin (a sink) cannot link to anything upstream (appsink being 'another' sink). So we
+            //       manually link them below using glsinkbin's 'sink' pad -> appsink.
+            sc->appsink = gst_element_factory_make("appsink", NULL);
+            g_object_set(sc->appsink,
+                         // Set caps
+                         "caps",
+                         caps,
+                         // Fixed size buffer
+                         "max-buffers",
+                         1,
+                         // drop old buffers when queue is filled
+                         "drop",
+                         true,
+                         // terminator
+                         NULL);
+            // Lower overhead than new-sample signal.
+            GstAppSinkCallbacks callbacks = {0};
+            callbacks.new_sample = on_new_sample_cb;
+            gst_app_sink_set_callbacks(GST_APP_SINK(sc->appsink), &callbacks, sc, NULL);
+            sc->received_first_frame = false;
+
+            g_object_set(glsinkbin, "sink", sc->appsink, NULL);
+        }
+    }
+}
+
+static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, EmStreamClient *sc) {
+    // We don't care about sink pads
+    if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
+        return;
+    }
+
+    g_print("Got incoming decodebin stream\n");
+
+    if (!gst_pad_has_current_caps(pad)) {
+        gst_printerr("Pad '%s' has no caps, can't do anything, ignoring\n", GST_PAD_NAME(pad));
+        return;
+    }
+
+    GstCaps *caps = gst_pad_get_current_caps(pad);
+    const gchar *name = gst_structure_get_name(gst_caps_get_structure(caps, 0));
+
+    gchar *str = gst_caps_serialize(caps, 0);
+    g_print("decodebin src pad caps: %s\n", str);
+    g_free(str);
+
+    if (g_str_has_prefix(name, "video")) {
+        handle_media_stream(pad, sc, "videoconvert", "autovideosink");
+    } else if (g_str_has_prefix(name, "audio")) {
+        handle_media_stream(pad, sc, "audioconvert", "autoaudiosink");
+    } else {
+        gst_printerr("Unknown pad %s, ignoring", GST_PAD_NAME(pad));
+    }
+}
+
+static void on_webrtcbin_pad_added(GstElement *webrtc, GstPad *pad, EmStreamClient *sc) {
+    // We don't care about sink pads
+    if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
+        return;
+    }
+
+    g_print("Got incoming stream\n");
+
+    GstCaps *caps = gst_pad_get_current_caps(pad);
+    gchar *str = gst_caps_serialize(caps, 0);
+    g_print("webrtcbin src pad caps: %s\n", str);
+    g_free(str);
+
+    if (caps && gst_caps_get_size(caps) > 0) {
+        GstStructure *structure = gst_caps_get_structure(caps, 0);
+        const gchar *media_type = gst_structure_get_name(structure);
+        g_print("Media type: %s\n", media_type);
+    }
+
+    gst_caps_unref(caps);
+
+    GstElement *decodebin = gst_element_factory_make("decodebin", NULL);
+    g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_decodebin_pad_added), sc);
+    gst_bin_add(GST_BIN(sc->pipeline), decodebin);
+    gst_element_sync_state_with_parent(decodebin);
+
+    GstPad *sink_pad = gst_element_get_static_pad(decodebin, "sink");
+    gst_pad_link(pad, sink_pad);
+    gst_object_unref(sink_pad);
 }
 
 static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
@@ -375,7 +507,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     g_assert_nonnull(sc);
     g_assert_nonnull(emconn);
 
-    GError *error = NULL;
+    //    GError *error = NULL;
 
     // decodebin3 seems to .. hang?
     // omxh264dec doesn't seem to exist
@@ -396,75 +528,48 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
 
     // We'll need an active egl context below before setting up gstgl (as explained previously)
 
-    // clang-format off
-    gchar *pipeline_string = g_strdup_printf(
-        "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
-        "rtph264depay name=depay ! "
-        "decodebin3 ! "
-//        "amcviddec-c2qtiavcdecoder ! "        // Hardware
-//        "amcviddec-omxqcomvideodecoderavc ! " // Hardware
-//        "amcviddec-c2androidavcdecoder ! "    // Software
-//        "amcviddec-omxgoogleh264decoder ! "   // Software
-//        "video/x-raw(memory:GLMemory),format=(string)RGBA,width=(int)1280,height=(int)720,texture-target=(string)external-oes ! "
-        "glsinkbin name=glsink");
-    // clang-format on
+    //    // clang-format off
+    //    gchar *pipeline_string = g_strdup_printf(
+    //        "webrtcbin name=webrtc bundle-policy=max-bundle latency=0 ! "
+    //        "decodebin3 ! "
+    ////        "amcviddec-c2qtiavcdecoder ! "        // Hardware
+    ////        "amcviddec-omxqcomvideodecoderavc ! " // Hardware
+    ////        "amcviddec-c2androidavcdecoder ! "    // Software
+    ////        "amcviddec-omxgoogleh264decoder ! "   // Software
+    ////
+    ///"video/x-raw(memory:GLMemory),format=(string)RGBA,width=(int)1280,height=(int)720,texture-target=(string)external-oes
+    ///! "
+    //        "glsinkbin name=glsink");
+    //    // clang-format on
+    //
+    //    sc->pipeline = gst_object_ref_sink(gst_parse_launch(pipeline_string, &error));
+    //    if (sc->pipeline == NULL) {
+    //        ALOGE("Failed creating pipeline : Bad source: %s", error->message);
+    //        abort();
+    //    }
+    //    if (error) {
+    //        ALOGE("Error creating a pipeline from string: %s", error ? error->message : "Unknown");
+    //        abort();
+    //    }
 
-    sc->pipeline = gst_object_ref_sink(gst_parse_launch(pipeline_string, &error));
-    if (sc->pipeline == NULL) {
-        ALOGE("Failed creating pipeline : Bad source: %s", error->message);
-        abort();
-    }
-    if (error) {
-        ALOGE("Error creating a pipeline from string: %s", error ? error->message : "Unknown");
-        abort();
-    }
+    sc->pipeline = gst_pipeline_new("webrtc-recv-pipeline");
 
-    GstPad *pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(sc->pipeline), "depay"), "src");
-    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
-    gst_object_unref(pad);
-
-    GstElement *webrtcbin = gst_bin_get_by_name(GST_BIN(sc->pipeline), "webrtc");
+    GstElement *webrtcbin = gst_element_factory_make("webrtcbin", "webrtc");
+    // Matching this to the offerer's bundle policy is necessary for negotiation
+    g_object_set(webrtcbin, "bundle-policy", GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE, NULL);
+    g_object_set(webrtcbin, "latency", 0, NULL);
     g_signal_connect(webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
-    gst_object_unref(webrtcbin);
+    g_signal_connect(webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), sc);
 
-    // We convert the string SINK_CAPS above into a GstCaps that elements below can understand.
-    // the "video/x-raw(" GST_CAPS_FEATURE_MEMORY_GL_MEMORY ")," part of the caps is read :
-    // video/x-raw(memory:GLMemory) and is really important for getting zero-copy gl textures.
-    // It tells the pipeline (especially the decoder) that an internal android:Surface should
-    // get created internally (using the provided gstgl contexts above) so that the appsink
-    // can basically pull the samples out using an GLConsumer (this is just for context, as
-    // all of those constructs will be hidden from you, but are turned on by that CAPS).
-    g_autoptr(GstCaps) caps = gst_caps_from_string(SINK_CAPS);
+    gst_bin_add_many(GST_BIN(sc->pipeline), webrtcbin, NULL);
 
-    // FRED: We create the appsink 'manually' here because glsink's ALREADY a sink and so if we stick
-    //       glsinkbin ! appsink in our pipeline_string for automatic linking, gst_parse will NOT like this,
-    //       as glsinkbin (a sink) cannot link to anything upstream (appsink being 'another' sink). So we
-    //       manually link them below using glsinkbin's 'sink' pad -> appsink.
-    sc->appsink = gst_element_factory_make("appsink", NULL);
-    g_object_set(sc->appsink,
-            // Set caps
-                 "caps",
-                 caps,
-            // Fixed size buffer
-                 "max-buffers",
-                 1,
-            // drop old buffers when queue is filled
-                 "drop",
-                 true,
-            // terminator
-                 NULL);
-    // Lower overhead than new-sample signal.
-    GstAppSinkCallbacks callbacks = {0};
-    callbacks.new_sample = on_new_sample_cb;
-    gst_app_sink_set_callbacks(GST_APP_SINK(sc->appsink), &callbacks, sc, NULL);
-    sc->received_first_frame = false;
-
-    g_autoptr(GstElement) glsinkbin = gst_bin_get_by_name(GST_BIN(sc->pipeline), "glsink");
-    g_object_set(glsinkbin, "sink", sc->appsink, NULL);
+    //    GstPad *pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(sc->pipeline), "depay"), "src");
+    //    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
+    //    gst_object_unref(pad);
 
     g_autoptr(GstBus) bus = gst_element_get_bus(sc->pipeline);
     // We set this up to inject the EGL context
-    gst_bus_set_sync_handler(bus, (GstBusSyncHandler) bus_sync_handler_cb, sc, NULL);
+    gst_bus_set_sync_handler(bus, (GstBusSyncHandler)bus_sync_handler_cb, sc, NULL);
 
     // This just watches for errors and such
     gst_bus_add_watch(bus, gst_bus_cb, sc->pipeline);
@@ -472,8 +577,8 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
 
     sc->pipeline_is_running = TRUE;
 
-    // This actually hands over the pipeline. Once our own handler returns, the pipeline will be started by the
-    // connection.
+    // This actually hands over the pipeline. Once our own handler returns,
+    // the pipeline will be started by the connection.
     g_signal_emit_by_name(emconn, "set-pipeline", GST_PIPELINE(sc->pipeline), NULL);
 }
 
@@ -486,7 +591,7 @@ static void on_drop_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
 }
 
 static void *em_stream_client_thread_func(void *ptr) {
-    EmStreamClient *sc = (EmStreamClient *) ptr;
+    EmStreamClient *sc = (EmStreamClient *)ptr;
 
     ALOGI("%s: running GMainLoop", __FUNCTION__);
     g_main_loop_run(sc->loop);
@@ -522,7 +627,7 @@ void em_stream_client_spawn_thread(EmStreamClient *sc, EmConnection *connection)
     ALOGI("%s: Starting stream client mainloop thread", __FUNCTION__);
     em_stream_client_set_connection(sc, connection);
     int ret = os_thread_helper_start(&sc->play_thread, &em_stream_client_thread_func, sc);
-    (void) ret;
+    (void)ret;
     g_assert(ret == 0);
 }
 
@@ -542,8 +647,7 @@ void em_stream_client_stop(EmStreamClient *sc) {
     sc->pipeline_is_running = false;
 }
 
-struct em_sample *
-em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode_end) {
+struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode_end) {
     if (!sc->appsink) {
         // Not setup yet.
         return NULL;
@@ -561,8 +665,8 @@ em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode
     }
 
     // Check pipeline
-//    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-//    g_free(dot_data);
+    //    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    //    g_free(dot_data);
 
     if (sample == NULL) {
         if (gst_app_sink_is_eos(GST_APP_SINK(sc->appsink))) {
@@ -580,7 +684,7 @@ em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode
     gst_video_info_from_caps(&info, caps);
     gint width = GST_VIDEO_INFO_WIDTH(&info);
     gint height = GST_VIDEO_INFO_HEIGHT(&info);
-//    ALOGI("%s: frame %d (w) x %d (h)", __FUNCTION__, width, height);
+    //    ALOGI("%s: frame %d (w) x %d (h)", __FUNCTION__, width, height);
 
     // TODO: Handle resize?
 #if 0
@@ -593,9 +697,9 @@ em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode
     struct em_sc_sample *ret = calloc(1, sizeof(struct em_sc_sample));
 
     GstVideoFrame frame;
-    GstMapFlags flags = (GstMapFlags) (GST_MAP_READ | GST_MAP_GL);
+    GstMapFlags flags = (GstMapFlags)(GST_MAP_READ | GST_MAP_GL);
     gst_video_frame_map(&frame, &info, buffer, flags);
-    ret->base.frame_texture_id = *(GLuint *) frame.data[0];
+    ret->base.frame_texture_id = *(GLuint *)frame.data[0];
 
     if (sc->context == NULL) {
         ALOGI("%s: Retrieving the GStreamer EGL context", __FUNCTION__);
@@ -628,15 +732,15 @@ em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode
     ret->sample = sample;
 
     // Check pipeline
-//    gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-//    g_free(dot_data);
+    //    gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    //    g_free(dot_data);
 
     return ret;
 }
 
 void em_stream_client_release_sample(EmStreamClient *sc, struct em_sample *ems) {
-    struct em_sc_sample *impl = (struct em_sc_sample *) ems;
-//    ALOGI("Releasing sample with texture ID %d", ems->frame_texture_id);
+    struct em_sc_sample *impl = (struct em_sc_sample *)ems;
+    //    ALOGI("Releasing sample with texture ID %d", ems->frame_texture_id);
     gst_sample_unref(impl->sample);
     free(impl);
 }
