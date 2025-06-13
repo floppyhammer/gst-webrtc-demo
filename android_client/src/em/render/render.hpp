@@ -11,10 +11,9 @@
 
 #pragma once
 
-#include <EGL/egl.h>
-#include <GLES3/gl3.h>
-
 #include <memory>
+
+#include "render_api.h"
 
 class Renderer {
 public:

@@ -13,7 +13,7 @@
 
 #include <vector>
 
-#include "xr_platform_deps.h"
+#include "render_api.h"
 
 #ifdef __ANDROID__
 // using XrSwapchainImageForGL = XrSwapchainImageOpenGLESKHR;
