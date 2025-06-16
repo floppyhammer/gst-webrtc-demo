@@ -24,7 +24,7 @@
 // Use encodebin instead of x264enc
 #define USE_ENCODEBIN
 
-SignalingServer* signaling_server;
+static SignalingServer* signaling_server = NULL;
 
 struct MyGstData {
     GstElement* pipeline;
@@ -486,6 +486,35 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
     signaling_server = signaling_server_new();
 
+    struct MyGstData* mgd = U_TYPED_CALLOC(struct MyGstData);
+
+    // Trace logs
+    setenv("GST_DEBUG", "GST_TRACER:7", 1);
+    setenv("GST_TRACERS", "latency(flags=element+pipeline)", 1); // Latency
+    setenv("GST_DEBUG_FILE", "./latency.log", 1);                // Redirect log to a file
+
+    // Specify dot file dir
+    setenv("GST_DEBUG_DUMP_DOT_DIR", "./", 1);
+
+    // Do not do ansi color codes
+    setenv("GST_DEBUG_NO_COLOR", "1", 1);
+
+    // Set up gst logger
+    {
+#ifdef __ANDROID__
+        gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
+#endif
+
+        gst_debug_set_default_threshold(GST_LEVEL_WARNING);
+        gst_debug_set_threshold_for_name("encodebin2", GST_LEVEL_INFO);
+        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_INFO);
+        gst_debug_set_threshold_for_name("fec", GST_LEVEL_INFO);
+        //        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
+        //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
+    }
+
+    gst_init(NULL, NULL);
+
     // Setup pipeline
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
@@ -517,26 +546,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "tee name=%s allow-not-linked=true",
         AUDIO_TEE_NAME,
         VIDEO_TEE_NAME);
-
-    // No webrtc bin yet until later!
-
-    struct MyGstData* mgd = U_TYPED_CALLOC(struct MyGstData);
-
-    gst_init(NULL, NULL);
-
-    // Set up gst logger
-    {
-#ifdef __ANDROID__
-        gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
-#endif
-
-        gst_debug_set_default_threshold(GST_LEVEL_WARNING);
-        gst_debug_set_threshold_for_name("encodebin2", GST_LEVEL_INFO);
-        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_INFO);
-        gst_debug_set_threshold_for_name("fec", GST_LEVEL_INFO);
-        //        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
-        //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
-    }
+    // No webrtcbin yet until later!
 
     GstElement* pipeline = gst_parse_launch(pipeline_str, &error);
     if (error) {

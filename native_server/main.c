@@ -8,16 +8,6 @@
 #include "../src/utils/platform.h"
 
 int main(int argc, char *argv[]) {
-    // setenv("GST_DEBUG", "GST_TRACER:7", 1);
-    // setenv("GST_TRACERS", "latency(flags=element+pipeline)", 1); // Latency
-    // setenv("GST_DEBUG_FILE", "./latency.log", 1); // Redirect log to a file
-
-    // Specify dot file dir
-    setenv("GST_DEBUG_DUMP_DOT_DIR", "./", 1);
-
-    // Do not do ansi color codes
-    setenv("GST_DEBUG_NO_COLOR", "1", 1);
-
     struct MyGstData *mgd = NULL;
     server_pipeline_create(&mgd);
 
