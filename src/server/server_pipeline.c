@@ -541,6 +541,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "video/x-h264,profile=baseline ! "
 #endif
         "h264parse name=parser ! "
+        "netsim allow-reordering=false drop-probability=0.1 ! " // Emulate bad network
         "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
         "tee name=%s allow-not-linked=true",
