@@ -488,6 +488,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
     struct MyGstData* mgd = U_TYPED_CALLOC(struct MyGstData);
 
+#ifdef __linux__
     // Trace logs
     setenv("GST_DEBUG", "GST_TRACER:7", 1);
     setenv("GST_TRACERS", "latency(flags=element+pipeline)", 1); // Latency
@@ -498,6 +499,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
     // Do not do ansi color codes
     setenv("GST_DEBUG_NO_COLOR", "1", 1);
+#endif
 
     // Set up gst logger
     {
