@@ -324,8 +324,8 @@ static void webrtc_candidate_cb(SignalingServer* server,
 static GstPadProbeReturn remove_webrtcbin_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
     GstElement* webrtcbin = GST_ELEMENT(user_data);
 
-    gst_bin_remove(GST_BIN(GST_ELEMENT_PARENT(webrtcbin)), webrtcbin);
     gst_element_set_state(webrtcbin, GST_STATE_NULL);
+    gst_bin_remove(GST_BIN(GST_ELEMENT_PARENT(webrtcbin)), webrtcbin);
 
     return GST_PAD_PROBE_REMOVE;
 }
