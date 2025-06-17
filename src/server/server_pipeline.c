@@ -35,6 +35,9 @@ struct MyGstData {
 
     GObject* data_channel;
     guint timeout_src_id;
+
+    // todo: release
+    guint timeout_id_dot_data;
 };
 
 static gboolean sigint_handler(gpointer user_data) {
@@ -221,6 +224,17 @@ static void data_channel_message_string_cb(GstWebRTCDataChannel* data_channel, g
     ALOGD("Received data channel message: %s", str);
 }
 
+static gboolean check_pipeline_dot_data(struct MyGstData* mgd) {
+    if (!mgd) {
+        return G_SOURCE_CONTINUE;
+    }
+
+    gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    g_free(dot_data);
+
+    return G_SOURCE_CONTINUE;
+}
+
 static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_id, struct MyGstData* mgd) {
     ALOGD("Client connected, ID: %p", client_id);
 
@@ -275,6 +289,8 @@ static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
     g_free(name);
+
+    mgd->timeout_id_dot_data = g_timeout_add_seconds(3, check_pipeline_dot_data, mgd);
 }
 
 static void webrtc_sdp_answer_cb(SignalingServer* server, ClientId client_id, const gchar* sdp, struct MyGstData* mgd) {
@@ -555,11 +571,12 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 #endif
 #ifdef USE_H264
         "h264parse name=parser ! "
+        "netsim allow-reordering=false drop-probability=0.1 ! " // Emulate bad network
         "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else
-        "netsim allow-reordering=false drop-probability=0.1 ! " // Emulate bad network
         "rtpvp8pay ! "
+        "netsim allow-reordering=false drop-probability=0.1 ! " // Emulate bad network
         "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
 #endif
         "tee name=%s allow-not-linked=true",
@@ -589,10 +606,4 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
     mgd->pipeline = pipeline;
     *out_gst_data = mgd;
-}
-
-void server_pipeline_dump(struct MyGstData* mgd) {
-    // GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline");
-    gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    g_free(dot_data);
 }

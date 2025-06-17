@@ -13,16 +13,8 @@ int main(int argc, char *argv[]) {
 
     server_pipeline_play(mgd);
 
-    time_t start_seconds = time(NULL);
-    bool wrote_dot = false;
-
     ALOGD("Starting main loop");
     while (1) {
-        time_t now_seconds = time(NULL);
-        if (!wrote_dot && now_seconds - start_seconds > 5) {
-            wrote_dot = true;
-            server_pipeline_dump(mgd);
-        }
     }
 
     ALOGD("Exited main loop, cleaning up\n");

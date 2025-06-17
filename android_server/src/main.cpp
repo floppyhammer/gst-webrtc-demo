@@ -119,18 +119,9 @@ void android_main(struct android_app *app) {
 
     server_pipeline_play(mgd);
 
-    time_t start_seconds = time(NULL);
-    bool wrote_dot = false;
-
     ALOGD("Starting main loop");
     while (!app->destroyRequested) {
         poll_events(app, _state);
-
-        time_t now_seconds = time(NULL);
-        if (!wrote_dot && now_seconds - start_seconds > 10) {
-            wrote_dot = true;
-            server_pipeline_dump(mgd);
-        }
     }
 
     ALOGD("DEBUG: Exited main loop, cleaning up");
