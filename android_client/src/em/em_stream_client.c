@@ -395,8 +395,11 @@ static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char 
 
         gst_object_unref(qpad);
     } else {
-        // Create & Link glsinkbin
         GstElement *glsinkbin = gst_element_factory_make("glsinkbin", NULL);
+
+        // Disable clock sync to reduce latency
+        g_object_set(glsinkbin, "sync", FALSE, NULL);
+
         gst_bin_add_many(GST_BIN(sc->pipeline), glsinkbin, NULL);
 
         GstPad *sink_pad = gst_element_get_static_pad(glsinkbin, "sink");
