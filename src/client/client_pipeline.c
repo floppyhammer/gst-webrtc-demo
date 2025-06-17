@@ -86,7 +86,7 @@ static void webrtc_on_data_channel_cb(GstElement *webrtcbin, GstWebRTCDataChanne
     g_assert_null(ws_state.data_channel);
     ws_state.data_channel = GST_WEBRTC_DATA_CHANNEL(new_data_channel);
 
-    // Send message repeatedly
+    // Send the message repeatedly
     guint timeout_src_id = g_timeout_add_seconds(3, data_channel_send_message, NULL);
 
     g_signal_connect(new_data_channel, "on-close", G_CALLBACK(data_channel_close_cb), GUINT_TO_POINTER(timeout_src_id));
@@ -264,6 +264,9 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, GstElemen
     } else {
         gst_printerr("Unknown pad %s, ignoring", GST_PAD_NAME(pad));
     }
+
+    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    g_free(dot_data);
 }
 
 static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, GstElement *pipeline) {
@@ -438,6 +441,8 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
 
 int create_client(int argc, char *argv[]) {
     GError *error = NULL;
+
+    setenv("GST_DEBUG", "rtpbin:5,rtpulpfecdec:7,rtpjitterbuffer:2,rtpstorage:7,rtpstorage:5", 1);
 
     gst_init(&argc, &argv);
 

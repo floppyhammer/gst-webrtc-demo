@@ -21,8 +21,11 @@
 #define AUDIO_TEE_NAME "audio_tee"
 #define VIDEO_TEE_NAME "video_tee"
 
-// Use encodebin instead of x264enc
-#define USE_ENCODEBIN
+const bool ENABLE_AUDIO = false;
+
+// Use x264enc instead of encodebin
+// #define USE_X264ENC
+// #define USE_H264
 
 static SignalingServer* signaling_server = NULL;
 
@@ -92,10 +95,14 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
 
         GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
 
+#ifdef USE_H264
         GstCaps* caps = gst_caps_from_string(
             "application/x-rtp,"
             "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,"
             "profile-level-id=(string)42e01f");
+#else
+        GstCaps* caps = gst_caps_from_string("application/x-rtp,encoding-name=VP8,media=video,payload=96");
+#endif
 
         GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_0", caps);
 
@@ -108,7 +115,7 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
         gst_object_unref(tee);
     }
 
-    {
+    if (ENABLE_AUDIO) {
         GstElement* tee = gst_bin_get_by_name(GST_BIN(pipeline), AUDIO_TEE_NAME);
         GstPad* src_pad = gst_element_request_pad_simple(tee, "src_%u");
 
@@ -527,7 +534,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "queue ! "
         "opusenc perfect-timestamp=true ! "
         "rtpopuspay ! "
-        "application/x-rtp,encoding-name=OPUS,payload=127,ssrc=(uint)3484078953 ! "
+        "application/x-rtp,encoding-name=OPUS,media=audio,payload=127,ssrc=(uint)3484078953 ! "
         "queue ! "
         "tee name=%s allow-not-linked=true "
         // Video
@@ -535,17 +542,26 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
         "timeoverlay ! "
         "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
-#ifdef USE_ENCODEBIN
-        // zerolatency is not available for some hw encoders
-        "encodebin2 profile=\"video/x-h264|element-properties,bitrate=8192\" ! "
-#else
+#ifdef USE_H264
+    #ifdef USE_X264ENC
         "x264enc tune=zerolatency bitrate=8192 ! "
         "video/x-h264,profile=baseline ! "
+    #else
+        // zerolatency is not available for some hw encoders
+        "encodebin2 profile=\"video/x-h264|element-properties,bitrate=8192\" ! "
+    #endif
+#else
+        "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=2000000\" ! "
 #endif
+#ifdef USE_H264
         "h264parse name=parser ! "
-        "netsim allow-reordering=false drop-probability=0.1 ! " // Emulate bad network
         "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
+#else
+        "netsim allow-reordering=false drop-probability=0.1 ! " // Emulate bad network
+        "rtpvp8pay ! "
+        "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
+#endif
         "tee name=%s allow-not-linked=true",
         AUDIO_TEE_NAME,
         VIDEO_TEE_NAME);
