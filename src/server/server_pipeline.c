@@ -566,8 +566,10 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
         "identity signal-handoffs=true name=identity ! "
         "timeoverlay ! "
+#ifndef ANDROID
         "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! " // Local display sink for latency
                                                                                   // comparison
+#endif
 #ifdef USE_H264
     #ifdef USE_X264ENC
         "x264enc tune=zerolatency bitrate=8192 ! "
@@ -586,7 +588,9 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else
         "rtpvp8pay ! "
+    #ifndef ANDROID
         "netsim allow-reordering=false drop-probability=0.0 ! " // Emulate bad network
+    #endif
         "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
 #endif
         "tee name=%s allow-not-linked=true",

@@ -48,6 +48,14 @@ GST_PLUGIN_STATIC_DECLARE(x264);
 GST_PLUGIN_STATIC_DECLARE(videorate);
 // To use encodebin
 GST_PLUGIN_STATIC_DECLARE(encoding);
+GST_PLUGIN_STATIC_DECLARE(audiotestsrc);
+GST_PLUGIN_STATIC_DECLARE(audioconvert);
+GST_PLUGIN_STATIC_DECLARE(audioresample);
+GST_PLUGIN_STATIC_DECLARE(opus);
+// To use timeoverlay
+GST_PLUGIN_STATIC_DECLARE(pango);
+// To use vp8 encoder
+GST_PLUGIN_STATIC_DECLARE(vpx);
 /* Declaration of static gio modules */
 
 /* Call this function to load GIO modules */
@@ -97,5 +105,11 @@ gst_init_static_plugins(void) {
     GST_PLUGIN_STATIC_REGISTER(x264);
     GST_PLUGIN_STATIC_REGISTER(videorate);
     GST_PLUGIN_STATIC_REGISTER(encoding);
+    GST_PLUGIN_STATIC_REGISTER(audiotestsrc);
+    GST_PLUGIN_STATIC_REGISTER(audioconvert);
+    GST_PLUGIN_STATIC_REGISTER(audioresample);
+    GST_PLUGIN_STATIC_REGISTER(opus);
+    GST_PLUGIN_STATIC_REGISTER(pango);
+    GST_PLUGIN_STATIC_REGISTER(vpx);
     gst_android_load_gio_modules();
 }

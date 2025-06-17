@@ -16,7 +16,7 @@
 static gchar *websocket_uri = NULL;
 
 // If you don't have a local network, use `adb forward tcp:8080 tcp:8080` to map Android port
-#define WEBSOCKET_URI_DEFAULT "ws://127.0.0.1:8080/ws"
+#define DEFAULT_WEBSOCKET_URI "ws://127.0.0.1:8080/ws"
 
 static GOptionEntry options[] = {{
                                      "websocket-uri",
@@ -559,7 +559,7 @@ int create_client(int argc, char *argv[]) {
     }
 
     if (!websocket_uri) {
-        websocket_uri = g_strdup(WEBSOCKET_URI_DEFAULT);
+        websocket_uri = g_strdup(DEFAULT_WEBSOCKET_URI);
     }
 
     SoupSession *soup_session = soup_session_new();
