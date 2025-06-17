@@ -34,6 +34,8 @@ struct MyState {
     GstElement *pipeline;
     GstElement *webrtcbin;
     GstWebRTCDataChannel *data_channel;
+    // todo: release
+    guint timeout_id;
 };
 
 struct MyState ws_state = {};
@@ -398,6 +400,72 @@ static void on_negotiation_needed(GstElement *element, gpointer user_data) {
     // Pass
 }
 
+GstElement *find_element_by_name(GstBin *bin, const gchar *element_name) {
+    GstIterator *iter = gst_bin_iterate_elements(bin);
+    GValue item = G_VALUE_INIT;
+    GstElement *result = NULL;
+
+    while (gst_iterator_next(iter, &item) == GST_ITERATOR_OK) {
+        GstElement *element = GST_ELEMENT(g_value_get_object(&item));
+        if (g_strcmp0(GST_ELEMENT_NAME(element), element_name) == 0) {
+            result = element;
+            // Take a ref
+            // gst_object_ref(result);
+            g_value_unset(&item);
+            break;
+        }
+        if (GST_IS_BIN(element)) {
+            result = find_element_by_name(GST_BIN(element), element_name);
+            if (result) {
+                g_value_unset(&item);
+                break;
+            }
+        }
+        g_value_unset(&item);
+    }
+
+    gst_iterator_free(iter);
+    return result;
+}
+
+static gboolean print_fec_stats() {
+    if (!ws_state.webrtcbin) {
+        return G_SOURCE_CONTINUE;
+    }
+
+    for (int i = 0; i < 2; i++) {
+        gchar *name;
+        if (i == 0) {
+            name = "rtpulpfecdec0";
+        } else {
+            name = "rtpulpfecdec1";
+        }
+
+        GstElement *rtpulpfecdec = find_element_by_name(GST_BIN(ws_state.webrtcbin), name);
+
+        if (rtpulpfecdec) {
+            GValue pt = G_VALUE_INIT;
+            GValue recovered = G_VALUE_INIT;
+            GValue unrecovered = G_VALUE_INIT;
+
+            g_object_get_property(G_OBJECT(rtpulpfecdec), "pt", &pt);
+            g_object_get_property(G_OBJECT(rtpulpfecdec), "recovered", &recovered);
+            g_object_get_property(G_OBJECT(rtpulpfecdec), "unrecovered", &unrecovered);
+
+            g_print("FEC stats: pt %u, recovered %u, unrecovered %u\n",
+                    g_value_get_uint(&pt),
+                    g_value_get_uint(&recovered),
+                    g_value_get_uint(&unrecovered));
+
+            g_value_unset(&pt);
+            g_value_unset(&recovered);
+            g_value_unset(&unrecovered);
+        }
+    }
+
+    return G_SOURCE_CONTINUE;
+}
+
 static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer user_data) {
     GError *error = NULL;
 
@@ -436,13 +504,16 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
 
         // Start pipeline
         g_assert(gst_element_set_state(ws_state.pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE);
+
+        // Print FEC stats repeatedly
+        ws_state.timeout_id = g_timeout_add_seconds(3, print_fec_stats, NULL);
     }
 }
 
 int create_client(int argc, char *argv[]) {
     GError *error = NULL;
 
-    setenv("GST_DEBUG", "rtpbin:5,rtpulpfecdec:7,rtpjitterbuffer:2,rtpstorage:7,rtpstorage:5", 1);
+    // setenv("GST_DEBUG", "rtpbin:5,rtpulpfecdec:7,rtpjitterbuffer:2,rtpstorage:7,rtpstorage:5", 1);
 
     gst_init(&argc, &argv);
 

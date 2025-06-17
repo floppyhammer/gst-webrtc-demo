@@ -21,7 +21,7 @@
 #define AUDIO_TEE_NAME "audio_tee"
 #define VIDEO_TEE_NAME "video_tee"
 
-const bool ENABLE_AUDIO = false;
+const bool ENABLE_AUDIO = true;
 
 // Use x264enc instead of encodebin
 // #define USE_X264ENC
