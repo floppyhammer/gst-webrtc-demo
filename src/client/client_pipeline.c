@@ -529,7 +529,6 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         g_signal_connect(ws_state.webrtcbin, "on-data-channel", G_CALLBACK(webrtc_on_data_channel_cb), NULL);
         g_signal_connect(ws_state.webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
         g_signal_connect(ws_state.webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
-        // Incoming streams will be exposed via this signal
         g_signal_connect(ws_state.webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), ws_state.pipeline);
 
         GstBus *bus = gst_element_get_bus(ws_state.pipeline);

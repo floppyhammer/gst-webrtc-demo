@@ -21,11 +21,12 @@
 #define AUDIO_TEE_NAME "audio_tee"
 #define VIDEO_TEE_NAME "video_tee"
 
-const bool ENABLE_AUDIO = true;
+const bool ENABLE_AUDIO = 1;
+
+// #define USE_H264
 
 // Use x264enc instead of encodebin
-// #define USE_X264ENC
-// #define USE_H264
+// #define USE_X264ENC // Software encoder
 
 static SignalingServer* signaling_server = NULL;
 
@@ -507,7 +508,7 @@ static GstPadProbeReturn buffer_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpo
 static void on_handoff(GstElement* identity, GstBuffer* buffer, gpointer user_data) {
     GstClockTime pts = GST_BUFFER_PTS(buffer);
     GstClockTime dts = GST_BUFFER_DTS(buffer);
-    g_print("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
+    // g_print("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
 }
 
 void server_pipeline_create(struct MyGstData** out_gst_data) {
@@ -565,7 +566,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
         "identity signal-handoffs=true name=identity ! "
         "timeoverlay ! "
-    // "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! "
+        "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! " // Local display sink for latency
+                                                                                  // comparison
 #ifdef USE_H264
     #ifdef USE_X264ENC
         "x264enc tune=zerolatency bitrate=8192 ! "
