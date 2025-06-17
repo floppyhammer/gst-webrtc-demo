@@ -556,8 +556,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         // Video
         // "filesrc location=test.mp4 ! decodebin3 ! "
         "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
-        "timeoverlay ! "
         "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
+        "timeoverlay ! "
 #ifdef USE_H264
     #ifdef USE_X264ENC
         "x264enc tune=zerolatency bitrate=8192 ! "

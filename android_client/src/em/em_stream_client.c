@@ -157,12 +157,13 @@ struct _EmStreamClient {
 
     struct os_thread_helper play_thread;
 
-    bool pipeline_is_running;
     bool received_first_frame;
 
     GMutex sample_mutex;
     GstSample *sample;
     struct timespec sample_decode_end_ts;
+
+    guint timeout_id_dot_data;
 };
 
 // clang-format off
@@ -398,8 +399,6 @@ static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char 
         GstElement *glsinkbin = gst_element_factory_make("glsinkbin", NULL);
         gst_bin_add_many(GST_BIN(sc->pipeline), glsinkbin, NULL);
 
-        gst_element_sync_state_with_parent(glsinkbin);
-
         GstPad *sink_pad = gst_element_get_static_pad(glsinkbin, "sink");
         GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
         g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
@@ -442,6 +441,8 @@ static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char 
 
             g_object_set(glsinkbin, "sink", sc->appsink, NULL);
         }
+
+        gst_element_sync_state_with_parent(glsinkbin);
     }
 }
 
@@ -450,8 +451,6 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, EmStreamC
     if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
         return;
     }
-
-    g_print("Hit on_decodebin_pad_added\n");
 
     GstCaps *caps = NULL;
 
@@ -489,8 +488,6 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, EmStreamC
         return;
     }
 
-    g_print("Hit on_webrtcbin_pad_added\n");
-
     GstCaps *caps = gst_pad_get_current_caps(pad);
     gchar *str = gst_caps_serialize(caps, 0);
     g_print("webrtcbin src pad caps: %s\n", str);
@@ -509,7 +506,7 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, EmStreamC
         GstElement *opusdec = gst_element_factory_make("opusdec", NULL);
 
         // Not triggered
-//        g_signal_connect(opusdec, "pad-added", G_CALLBACK(on_decodebin_pad_added), sc);
+        //        g_signal_connect(opusdec, "pad-added", G_CALLBACK(on_decodebin_pad_added), sc);
         gst_bin_add(GST_BIN(sc->pipeline), opusdec);
 
         gst_element_link(depay, opusdec);
@@ -520,16 +517,28 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, EmStreamC
         gst_element_sync_state_with_parent(depay);
         gst_element_sync_state_with_parent(opusdec);
     } else {
-        GstElement *decodebin = gst_element_factory_make("decodebin", NULL);
+        GstElement *decodebin = gst_element_factory_make("decodebin3", NULL);
 
         g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_decodebin_pad_added), sc);
         gst_bin_add(GST_BIN(sc->pipeline), decodebin);
-        gst_element_sync_state_with_parent(decodebin);
 
         GstPad *sink_pad = gst_element_get_static_pad(decodebin, "sink");
         gst_pad_link(pad, sink_pad);
         gst_object_unref(sink_pad);
+
+        gst_element_sync_state_with_parent(decodebin);
     }
+}
+
+static gboolean check_pipeline_dot_data(EmStreamClient *sc) {
+    if (!sc || !sc->pipeline) {
+        return G_SOURCE_CONTINUE;
+    }
+
+    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    g_free(dot_data);
+
+    return G_SOURCE_CONTINUE;
 }
 
 static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
@@ -605,11 +614,11 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     gst_bus_add_watch(bus, gst_bus_cb, sc->pipeline);
     g_object_unref(bus);
 
-    sc->pipeline_is_running = TRUE;
-
     // This actually hands over the pipeline. Once our own handler returns,
     // the pipeline will be started by the connection.
     g_signal_emit_by_name(emconn, "set-pipeline", GST_PIPELINE(sc->pipeline), NULL);
+
+    sc->timeout_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), sc);
 }
 
 static void on_drop_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
@@ -673,8 +682,6 @@ void em_stream_client_stop(EmStreamClient *sc) {
     gst_clear_object(&sc->pipeline);
     gst_clear_object(&sc->appsink);
     gst_clear_object(&sc->context);
-
-    sc->pipeline_is_running = false;
 }
 
 struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode_end) {
