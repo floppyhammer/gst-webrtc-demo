@@ -191,13 +191,22 @@ static void webrtc_on_ice_candidate_cb(GstElement *webrtcbin, guint mlineindex, 
     g_object_unref(builder);
 }
 
+static void on_handoff(GstElement *identity, GstBuffer *buffer, gpointer user_data) {
+    GstClockTime pts = GST_BUFFER_PTS(buffer);
+    GstClockTime dts = GST_BUFFER_DTS(buffer);
+    // g_print("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
+}
+
+static GstElement *autovideosink = NULL;
 static void handle_media_stream(GstPad *pad, GstElement *pipeline, const char *convert_name, const char *sink_name) {
     gst_println("Trying to handle stream with %s ! %s", convert_name, sink_name);
 
     GstElement *q = gst_element_factory_make("queue", NULL);
     g_assert_nonnull(q);
+
     GstElement *conv = gst_element_factory_make(convert_name, NULL);
     g_assert_nonnull(conv);
+
     GstElement *sink = gst_element_factory_make(sink_name, NULL);
     g_assert_nonnull(sink);
 
@@ -213,11 +222,20 @@ static void handle_media_stream(GstPad *pad, GstElement *pipeline, const char *c
         gst_element_sync_state_with_parent(sink);
         gst_element_link_many(q, conv, resample, sink, NULL);
     } else {
-        gst_bin_add_many(GST_BIN(pipeline), q, conv, sink, NULL);
+        GstElement *identity = gst_element_factory_make("identity", NULL);
+        g_assert_nonnull(identity);
+        g_object_set(identity, "signal-handoffs", TRUE, NULL);
+
+        gst_bin_add_many(GST_BIN(pipeline), q, conv, sink, identity, NULL);
         gst_element_sync_state_with_parent(q);
         gst_element_sync_state_with_parent(conv);
         gst_element_sync_state_with_parent(sink);
-        gst_element_link_many(q, conv, sink, NULL);
+        gst_element_sync_state_with_parent(identity);
+        gst_element_link_many(q, conv, identity, sink, NULL);
+
+        g_signal_connect(identity, "handoff", G_CALLBACK(on_handoff), NULL);
+
+        autovideosink = sink;
     }
 
     GstPad *qpad = gst_element_get_static_pad(q, "sink");
@@ -428,11 +446,27 @@ GstElement *find_element_by_name(GstBin *bin, const gchar *element_name) {
     return result;
 }
 
-static gboolean print_fec_stats() {
+static void on_webrtcbin_stats(GstPromise *promise, GstElement *user_data) {
+    const GstStructure *reply = gst_promise_get_reply(promise);
+    gchar *str = gst_structure_to_string(reply);
+    g_print("webrtcbin stats: %s\n", str);
+    g_free(str);
+}
+
+static gboolean print_stats() {
     if (!ws_state.webrtcbin) {
         return G_SOURCE_CONTINUE;
     }
 
+    GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_webrtcbin_stats, NULL, NULL);
+    g_signal_emit_by_name(ws_state.webrtcbin, "get-stats", NULL, promise);
+
+    if (autovideosink) {
+        GstClockTime running_time = gst_element_get_current_running_time(autovideosink);
+        g_print("autovideosink running time: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(running_time));
+    }
+
+    // FEC stats
     for (int i = 0; i < 2; i++) {
         gchar *name;
         if (i == 0) {
@@ -505,8 +539,8 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         // Start pipeline
         g_assert(gst_element_set_state(ws_state.pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE);
 
-        // Print FEC stats repeatedly
-        ws_state.timeout_id = g_timeout_add_seconds(3, print_fec_stats, NULL);
+        // Print stats repeatedly
+        ws_state.timeout_id = g_timeout_add_seconds(3, print_stats, NULL);
     }
 }
 

@@ -504,6 +504,12 @@ static GstPadProbeReturn buffer_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpo
     return GST_PAD_PROBE_OK;
 }
 
+static void on_handoff(GstElement* identity, GstBuffer* buffer, gpointer user_data) {
+    GstClockTime pts = GST_BUFFER_PTS(buffer);
+    GstClockTime dts = GST_BUFFER_DTS(buffer);
+    g_print("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
+}
+
 void server_pipeline_create(struct MyGstData** out_gst_data) {
     GError* error = NULL;
 
@@ -557,7 +563,9 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         // "filesrc location=test.mp4 ! decodebin3 ! "
         "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
         "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
+        "identity signal-handoffs=true name=identity ! "
         "timeoverlay ! "
+    // "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! "
 #ifdef USE_H264
     #ifdef USE_X264ENC
         "x264enc tune=zerolatency bitrate=8192 ! "
@@ -570,13 +578,13 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=2000000\" ! "
 #endif
 #ifdef USE_H264
-        "h264parse name=parser ! "
-        "netsim allow-reordering=false drop-probability=0.1 ! " // Emulate bad network
+        "h264parse ! "
+        "netsim allow-reordering=false drop-probability=0.0 ! " // Emulate bad network
         "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else
         "rtpvp8pay ! "
-        "netsim allow-reordering=false drop-probability=0.1 ! " // Emulate bad network
+        "netsim allow-reordering=false drop-probability=0.0 ! " // Emulate bad network
         "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
 #endif
         "tee name=%s allow-not-linked=true",
@@ -594,6 +602,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "parser"), "src");
     // gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
     // gst_object_unref(pad);
+
+    g_signal_connect(gst_bin_get_by_name(GST_BIN(pipeline), "identity"), "handoff", G_CALLBACK(on_handoff), NULL);
 
     GstBus* bus = gst_element_get_bus(pipeline);
     gst_bus_add_watch(bus, gst_bus_cb, mgd);
