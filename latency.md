@@ -35,7 +35,3 @@ PC->Mobile (Wi-Fi) 150ms
 PC->PC (localhost) 150ms
 
 PC->Mobile (Wi-Fi) 300ms
-
-## Notes
-
-- Enabling/Disabling FEC doesn't affect latency if there's no packet loss.

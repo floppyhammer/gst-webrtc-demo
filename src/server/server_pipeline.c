@@ -7,10 +7,8 @@
 #include "signaling_server.h"
 
 #define GST_USE_UNSTABLE_API
-
 #include <gst/webrtc/datachannel.h>
 #include <gst/webrtc/rtcsessiondescription.h>
-
 #undef GST_USE_UNSTABLE_API
 
 #include <assert.h>
@@ -21,12 +19,14 @@
 #define AUDIO_TEE_NAME "audio_tee"
 #define VIDEO_TEE_NAME "video_tee"
 
-const bool ENABLE_AUDIO = 1;
+const bool ENABLE_AUDIO = 0;
 
 // #define USE_H264
 
 // Use x264enc instead of encodebin
 // #define USE_X264ENC // Software encoder
+
+#define NETSIM "netsim allow-reordering=false drop-probability=0.0 ! " // Emulate bad network
 
 static SignalingServer* signaling_server = NULL;
 
@@ -520,15 +520,15 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
 #ifdef __linux__
     // Trace logs
-    setenv("GST_DEBUG", "GST_TRACER:7", 1);
-    setenv("GST_TRACERS", "latency(flags=element+pipeline)", 1); // Latency
-    setenv("GST_DEBUG_FILE", "./latency.log", 1);                // Redirect log to a file
-
-    // Specify dot file dir
-    setenv("GST_DEBUG_DUMP_DOT_DIR", "./", 1);
-
-    // Do not do ansi color codes
-    setenv("GST_DEBUG_NO_COLOR", "1", 1);
+    // setenv("GST_DEBUG", "GST_TRACER:7", 1);
+    // setenv("GST_TRACERS", "latency(flags=pipeline)", 1); // Latency
+    // setenv("GST_DEBUG_FILE", "./latency.log", 1);        // Redirect log to a file
+    //
+    // // Specify dot file dir
+    // setenv("GST_DEBUG_DUMP_DOT_DIR", "./", 1);
+    //
+    // // Do not do ansi color codes
+    // setenv("GST_DEBUG_NO_COLOR", "1", 1);
 #endif
 
     // Set up gst logger
@@ -550,6 +550,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // Setup pipeline
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
+#ifdef ENABLE_AUDIO
         // Audio
         "audiotestsrc is-live=true wave=red-noise ! "
         "audioconvert ! "
@@ -560,6 +561,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "application/x-rtp,encoding-name=OPUS,media=audio,payload=127,ssrc=(uint)3484078953 ! "
         "queue ! "
         "tee name=%s allow-not-linked=true "
+#endif
         // Video
         // "filesrc location=test.mp4 ! decodebin3 ! "
         "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
@@ -579,22 +581,26 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "encodebin2 profile=\"video/x-h264|element-properties,bitrate=8192\" ! "
     #endif
 #else
-        "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=2000000\" ! "
+        "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=8192000\" ! "
 #endif
 #ifdef USE_H264
         "h264parse ! "
-        "netsim allow-reordering=false drop-probability=0.0 ! " // Emulate bad network
+    #ifndef ANDROID
+        NETSIM
+    #endif
         "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else
         "rtpvp8pay ! "
     #ifndef ANDROID
-        "netsim allow-reordering=false drop-probability=0.0 ! " // Emulate bad network
+        NETSIM
     #endif
         "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
 #endif
         "tee name=%s allow-not-linked=true",
+#ifdef ENABLE_AUDIO
         AUDIO_TEE_NAME,
+#endif
         VIDEO_TEE_NAME);
     // No webrtcbin yet until later!
 
