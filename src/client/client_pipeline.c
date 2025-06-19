@@ -36,7 +36,7 @@ struct MyState {
     GstElement *webrtcbin;
     GstWebRTCDataChannel *data_channel;
     // todo: release
-    guint timeout_id;
+    guint timeout_src_id_print_stats;
 };
 
 struct MyState ws_state = {};
@@ -52,10 +52,10 @@ static void data_channel_error_cb(GstWebRTCDataChannel *data_channel, void *data
     abort();
 }
 
-static void data_channel_close_cb(GstWebRTCDataChannel *data_channel, gpointer timeout_src_id) {
+static void data_channel_close_cb(GstWebRTCDataChannel *data_channel, gpointer timeout_src_id_msg) {
     g_print("Data channel closed\n");
 
-    g_source_remove(GPOINTER_TO_UINT(timeout_src_id));
+    g_source_remove(GPOINTER_TO_UINT(timeout_src_id_msg));
     g_clear_object(&data_channel);
 }
 
@@ -80,7 +80,7 @@ static void data_channel_message_string_cb(GstWebRTCDataChannel *data_channel, g
 static gboolean data_channel_send_message(gpointer unused) {
     g_signal_emit_by_name(ws_state.data_channel, "send-string", "Hi! from test client");
 
-    return G_SOURCE_CONTINUE;
+    return G_SOURCE_REMOVE;
 }
 
 static void webrtc_on_data_channel_cb(GstElement *webrtcbin, GstWebRTCDataChannel *new_data_channel, void *user_data) {
@@ -90,10 +90,16 @@ static void webrtc_on_data_channel_cb(GstElement *webrtcbin, GstWebRTCDataChanne
     ws_state.data_channel = GST_WEBRTC_DATA_CHANNEL(new_data_channel);
 
     // Send the message repeatedly
-    guint timeout_src_id = g_timeout_add_seconds(3, data_channel_send_message, NULL);
+    guint timeout_src_id_msg = g_timeout_add_seconds(3, data_channel_send_message, NULL);
 
-    g_signal_connect(new_data_channel, "on-close", G_CALLBACK(data_channel_close_cb), GUINT_TO_POINTER(timeout_src_id));
-    g_signal_connect(new_data_channel, "on-error", G_CALLBACK(data_channel_error_cb), GUINT_TO_POINTER(timeout_src_id));
+    g_signal_connect(new_data_channel,
+                     "on-close",
+                     G_CALLBACK(data_channel_close_cb),
+                     GUINT_TO_POINTER(timeout_src_id_msg));
+    g_signal_connect(new_data_channel,
+                     "on-error",
+                     G_CALLBACK(data_channel_error_cb),
+                     GUINT_TO_POINTER(timeout_src_id_msg));
     g_signal_connect(new_data_channel, "on-message-data", G_CALLBACK(data_channel_message_data_cb), NULL);
     g_signal_connect(new_data_channel, "on-message-string", G_CALLBACK(data_channel_message_string_cb), NULL);
 }
@@ -540,7 +546,7 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         g_assert(gst_element_set_state(ws_state.pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE);
 
         // Print stats repeatedly
-        ws_state.timeout_id = g_timeout_add_seconds(3, print_stats, NULL);
+        ws_state.timeout_src_id_print_stats = g_timeout_add_seconds(3, print_stats, NULL);
     }
 }
 
@@ -597,4 +603,6 @@ int create_client(int argc, char *argv[]) {
     // Cleanup
     g_main_loop_unref(loop);
     g_clear_pointer(&websocket_uri, g_free);
+
+    return 0;
 }

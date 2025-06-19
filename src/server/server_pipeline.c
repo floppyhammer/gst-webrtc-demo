@@ -34,10 +34,9 @@ struct MyGstData {
     GstElement* webrtcbin;
 
     GObject* data_channel;
-    guint timeout_src_id;
+    guint timeout_src_id_msg;
 
-    // todo: release
-    guint timeout_id_dot_data;
+    guint timeout_src_id_dot_data;
 };
 
 static gboolean sigint_handler(gpointer user_data) {
@@ -198,19 +197,19 @@ gboolean data_channel_send_message(GstWebRTCDataChannel* data_channel) {
     GBytes* b = g_bytes_new_static(test_data_buf, ARRAY_SIZE(test_data_buf));
     gst_webrtc_data_channel_send_data(data_channel, b);
 
-    return G_SOURCE_CONTINUE;
+    return G_SOURCE_REMOVE;
 }
 
 static void data_channel_open_cb(GstWebRTCDataChannel* data_channel, struct MyGstData* mgd) {
     ALOGD("Data channel opened");
 
-    mgd->timeout_src_id = g_timeout_add_seconds(3, G_SOURCE_FUNC(data_channel_send_message), data_channel);
+    mgd->timeout_src_id_msg = g_timeout_add_seconds(3, G_SOURCE_FUNC(data_channel_send_message), data_channel);
 }
 
 static void data_channel_close_cb(GstWebRTCDataChannel* data_channel, struct MyGstData* mgd) {
     ALOGD("Data channel closed");
 
-    g_clear_handle_id(&mgd->timeout_src_id, g_source_remove);
+    g_clear_handle_id(&mgd->timeout_src_id_msg, g_source_remove);
     g_clear_object(&mgd->data_channel);
 }
 
@@ -284,7 +283,7 @@ static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_
     ret = gst_element_set_state(webrtcbin, GST_STATE_PLAYING);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
-    mgd->timeout_id_dot_data = g_timeout_add_seconds(3, check_pipeline_dot_data, mgd);
+    mgd->timeout_src_id_dot_data = g_timeout_add_seconds(3, check_pipeline_dot_data, mgd);
 }
 
 static void webrtc_sdp_answer_cb(SignalingServer* server, ClientId client_id, const gchar* sdp, struct MyGstData* mgd) {
@@ -461,6 +460,8 @@ void server_pipeline_stop(struct MyGstData* mgd) {
     // Completely stop the pipeline.
     ALOGD("Setting pipeline state to NULL");
     gst_element_set_state(mgd->pipeline, GST_STATE_NULL);
+
+    g_clear_handle_id(&mgd->timeout_src_id_dot_data, g_source_remove);
 }
 
 void gstAndroidLog(GstDebugCategory* category,

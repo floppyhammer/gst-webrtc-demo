@@ -1,3 +1,4 @@
+#include <glib.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,11 +14,14 @@ int main(int argc, char *argv[]) {
 
     server_pipeline_play(mgd);
 
+    GMainLoop *loop = g_main_loop_new(NULL, FALSE);
+
     ALOGD("Starting main loop");
-    while (1) {
-    }
+    g_main_loop_run(loop);
 
     ALOGD("Exited main loop, cleaning up\n");
+    g_main_loop_unref(loop);
 
+    // Cleanup
     server_pipeline_stop(mgd);
 }
