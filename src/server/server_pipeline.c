@@ -222,7 +222,7 @@ static void data_channel_message_string_cb(GstWebRTCDataChannel* data_channel, g
 }
 
 static gboolean check_pipeline_dot_data(struct MyGstData* mgd) {
-    if (!mgd || mgd->pipeline) {
+    if (!mgd || !mgd->pipeline) {
         return G_SOURCE_CONTINUE;
     }
 
