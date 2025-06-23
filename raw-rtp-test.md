@@ -1,4 +1,4 @@
-## Plain RTP
+## Plain UDP
 
 Sender
 
@@ -22,6 +22,21 @@ gst-launch-1.0 -v \
   avdec_h264 ! \
   videoconvert ! \
   autovideosink sync=false
+```
+
+## Plain RTP
+
+Sender
+
+```bash
+gst-launch-1.0 -v filesrc location=test.mp4 ! decodebin3 ! x264enc tune=zerolatency bitrate=8192 ! rtph264pay config-interval=-1 aggregate-mode=zero-latency ! application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! queue ! rtpsink uri=rtp://127.0.0.1:5000
+
+```
+
+Receiver
+
+```bash
+gst-launch-1.0 -v rtpsrc uri=rtp://0.0.0.0:5000?encoding-name=H264 ! rtph264depay ! avdec_h264 ! videoconvert ! queue ! autovideosink
 ```
 
 ## ulpfec
