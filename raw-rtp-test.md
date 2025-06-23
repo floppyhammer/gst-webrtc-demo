@@ -37,7 +37,7 @@ Receiver
 gst-launch-1.0 -v \
   udpsrc port=5000 caps='application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)H264' ! \
   rtpstorage size-time=220000000 ! rtpssrcdemux ! application/x-rtp,payload=96,clock-rate=90000,media=video,encoding-name=H264 ! \
-  rtpjitterbuffer do-lost=1 latency=5 ! rtpulpfecdec pt=122 ! rtph264depay ! decodebin3 ! autovideosink sync=false
+  rtpjitterbuffer do-lost=1 latency=5 ! rtpulpfecdec pt=122 ! rtph264depay ! decodebin3 ! videoconvert ! autovideosink sync=false
 ```
 
 ## rtpst2022-1-fecenc
