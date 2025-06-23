@@ -81,8 +81,7 @@ Receiver
 gst-launch-1.0 rtpbin latency=500 fec-decoders='fec,0="rtpst2022-1-fecdec\ size-time\=1000000000";' \
   name=rtp udpsrc port=5002 caps="application/x-rtp, payload=96" ! \
   queue ! \
-  rtp.recv_fec_sink_0_0 udpsrc port=5004 \
-  caps="application/x-rtp, payload=96" ! \
+  rtp.recv_fec_sink_0_0 udpsrc port=5004 caps="application/x-rtp, payload=96" ! \
   queue ! \
   rtp.recv_fec_sink_0_1 \
   udpsrc port=5000 caps="application/x-rtp, media=video, clock-rate=90000, encoding-name=mp2t, payload=33" ! \
@@ -90,7 +89,7 @@ gst-launch-1.0 rtpbin latency=500 fec-decoders='fec,0="rtpst2022-1-fecdec\ size-
   netsim drop-probability=0.0 ! \
   rtp.recv_rtp_sink_0 \
   rtp. ! \
-  avdec_h264 ! \
+  decodebin ! \
   videoconvert ! \
   queue ! \
   autovideosink sync=false
