@@ -5,8 +5,8 @@ Sender
 ```bash
 gst-launch-1.0 -v \
   filesrc location=test.mp4 ! \
-  decodebin3 !  \
-  x264enc tune=zerolatency bitrate=8192 ! \
+  decodebin3 ! \
+  x264enc tune=zerolatency bitrate=8000 ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
   udpsink host=10.11.9.192 port=5000
@@ -29,14 +29,24 @@ gst-launch-1.0 -v \
 Sender
 
 ```bash
-gst-launch-1.0 -v filesrc location=test.mp4 ! decodebin3 ! x264enc tune=zerolatency bitrate=8192 ! rtph264pay config-interval=-1 aggregate-mode=zero-latency ! application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! queue ! rtpsink uri=rtp://127.0.0.1:5000
-
+gst-launch-1.0 -v filesrc location=test.mp4 ! \
+  decodebin3 ! \
+  x264enc tune=zerolatency bitrate=8000 ! \
+  rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
+  application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
+  queue ! \
+  rtpsink uri=rtp://10.11.9.192:5000
 ```
 
 Receiver
 
 ```bash
-gst-launch-1.0 -v rtpsrc uri=rtp://0.0.0.0:5000?encoding-name=H264 ! rtph264depay ! avdec_h264 ! videoconvert ! queue ! autovideosink
+gst-launch-1.0 -v rtpsrc uri=rtp://0.0.0.0:5000?encoding-name=H264 ! \
+  rtph264depay ! \
+  avdec_h264 ! \
+  videoconvert ! \
+  queue ! \
+  autovideosink
 ```
 
 ## ulpfec
@@ -53,7 +63,7 @@ gst-launch-1.0 -v \
   videoconvert ! \
   autovideosink t1. ! \
   queue ! \
-  x264enc tune=zerolatency bitrate=8192 ! \
+  x264enc tune=zerolatency bitrate=8000 ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
   rtpulpfecenc percentage=20 pt=122 ! \
@@ -83,7 +93,7 @@ Sender
 ```bash
 gst-launch-1.0 \
   rtpbin name=rtp fec-encoders='fec,0="rtpst2022-1-fecenc\ rows\=5\ columns\=5\ enable-row-fec\=true\ enable-column-fec\=true";' \
-  filesrc location=test.mp4 ! decodebin3 ! timeoverlay ! x264enc key-int-max=60 tune=zerolatency bitrate=8192 ! \
+  filesrc location=test.mp4 ! decodebin3 ! timeoverlay ! x264enc key-int-max=60 tune=zerolatency bitrate=8000 ! \
   queue ! mpegtsmux ! rtpmp2tpay ssrc=0 ! rtp.send_rtp_sink_0 \
   rtp.send_rtp_src_0 ! udpsink host=10.11.9.192 port=5000 \
   rtp.send_fec_src_0_0 ! udpsink host=10.11.9.192 port=5002 async=false \
@@ -110,7 +120,7 @@ gst-launch-1.0 rtpbin latency=500 fec-decoders='fec,0="rtpst2022-1-fecdec\ size-
   autovideosink sync=false
 ```
 
-## Comparison with ffmpeg
+## FFmpeg (MPEG-TS)
 
 Sender
 
@@ -122,4 +132,18 @@ Receiver
 
 ```bash
 ffplay -fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 1 -strict experimental -framedrop -f mpegts -vf setpts=0 udp://0.0.0.0:5000
+```
+
+## FFmpeg (RTP)
+
+Sender
+
+```bash
+ffmpeg -re -i test.mp4 -c:v copy -c:a copy -f rtp -sdp_file test_video.sdp "rtp://10.11.9.192:5000"
+```
+
+Receiver
+
+```bash
+ffplay -protocol_whitelist rtp,udp,file -i "video.sdp"
 ```
