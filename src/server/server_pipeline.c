@@ -281,7 +281,7 @@ static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_
     ret = gst_element_set_state(webrtcbin, GST_STATE_PLAYING);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
-    mgd->timeout_src_id_dot_data = g_timeout_add_seconds(3, check_pipeline_dot_data, mgd);
+    mgd->timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), mgd);
 }
 
 static void webrtc_sdp_answer_cb(SignalingServer* server, ClientId client_id, const gchar* sdp, struct MyGstData* mgd) {
