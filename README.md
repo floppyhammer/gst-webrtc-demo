@@ -23,7 +23,8 @@ sudo apt install libeigen3-dev \
     libxxf86vm-dev \
     pkg-config \
     libjson-glib-dev \
-    gstreamer1.0-libav
+    gstreamer1.0-libav \
+    libglib2.0-dev
 ```
 
 Plus some version of libsoup. Run the following, and see if it shows
