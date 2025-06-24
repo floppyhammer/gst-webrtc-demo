@@ -20,12 +20,10 @@
 
 const bool ENABLE_AUDIO = 0;
 
-// #define USE_H264
+#define USE_H264
 
 // Use x264enc instead of encodebin
 // #define USE_X264ENC // Software encoder
-
-#define NETSIM "netsim allow-reordering=false drop-probability=0.0 ! " // Emulate bad network
 
 static SignalingServer* signaling_server = NULL;
 
@@ -557,9 +555,9 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "tee name=%s allow-not-linked=true "
 #endif
         // Video
-        // "filesrc location=test.mp4 ! decodebin3 ! "
-        "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
-        "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
+        "filesrc location=test.mp4 ! decodebin3 ! "
+        // "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
+        // "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
         "identity signal-handoffs=true name=identity ! "
         "timeoverlay ! "
 #ifndef ANDROID
@@ -579,16 +577,10 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 #endif
 #ifdef USE_H264
         "h264parse ! "
-    #ifndef ANDROID
-        NETSIM
-    #endif
         "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else
         "rtpvp8pay ! "
-    #ifndef ANDROID
-        NETSIM
-    #endif
         "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
 #endif
         "tee name=%s allow-not-linked=true",
