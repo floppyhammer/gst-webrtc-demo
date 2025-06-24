@@ -21,7 +21,7 @@ gst-launch-1.0 -v \
   rtph264depay ! \
   avdec_h264 ! \
   videoconvert ! \
-  autovideosink sync=false
+  autovideosink
 ```
 
 ## Plain RTP
@@ -83,7 +83,7 @@ gst-launch-1.0 -v \
   rtph264depay ! \
   avdec_h264 ! \
   videoconvert ! \
-  autovideosink sync=false
+  autovideosink
 ```
 
 ## rtpst2022-1-fecenc
@@ -117,7 +117,7 @@ gst-launch-1.0 rtpbin latency=500 fec-decoders='fec,0="rtpst2022-1-fecdec\ size-
   decodebin ! \
   videoconvert ! \
   queue ! \
-  autovideosink sync=false
+  autovideosink
 ```
 
 ## FFmpeg (MPEG-TS)
