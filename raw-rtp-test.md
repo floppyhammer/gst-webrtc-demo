@@ -145,5 +145,5 @@ ffmpeg -re -i test.mp4 -c:v copy -c:a copy -f rtp -sdp_file test_video.sdp "rtp:
 Receiver
 
 ```bash
-ffplay -protocol_whitelist rtp,udp,file -i "video.sdp"
+ffplay -fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 1 -strict experimental -framedrop -protocol_whitelist rtp,udp,file -i "test_video.sdp"
 ```
