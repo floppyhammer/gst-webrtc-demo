@@ -131,7 +131,7 @@ ffmpeg -re -i test.mp4 -preset ultrafast -tune zerolatency -codec libx264 -f mpe
 Receiver
 
 ```bash
-ffplay -fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 1 -strict experimental -framedrop -f mpegts -vf setpts=0 udp://0.0.0.0:5000
+ffplay -fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 1 -strict experimental -framedrop -f mpegts -vf setpts=0 udp://localhost:5000
 ```
 
 ## FFmpeg (RTP)
@@ -139,7 +139,7 @@ ffplay -fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 1 -stric
 Sender
 
 ```bash
-ffmpeg -re -i test.mp4 -c:v copy -c:a copy -f rtp -sdp_file test_video.sdp "rtp://10.11.9.192:5000"
+ffmpeg -re -i test.mp4 -preset ultrafast -tune zerolatency -codec libx264 -f rtp -sdp_file test_video.sdp "rtp://10.11.9.192:5000"
 ```
 
 Receiver
