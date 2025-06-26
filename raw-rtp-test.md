@@ -89,7 +89,7 @@ gst-launch-1.0 -v \
   udpsrc port=5000 caps='application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)H264' ! \
   rtpstorage size-time=220000000 ! \
   rtpssrcdemux ! \
-  application/x-rtp,payload=96,clock-rate=90000,media=video,encoding-name=H264 ! \
+  application/x-rtp,clock-rate=90000,media=video,encoding-name=H264 ! \
   rtpjitterbuffer do-lost=1 latency=5 ! \
   rtpulpfecdec pt=122 ! \
   rtph264depay ! \
