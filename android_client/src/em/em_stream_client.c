@@ -163,7 +163,8 @@ struct _EmStreamClient {
     GstSample *sample;
     struct timespec sample_decode_end_ts;
 
-    guint timeout_id_dot_data;
+    guint timeout_src_id_dot_data;
+    guint timeout_src_id_print_stats;
 };
 
 // clang-format off
@@ -485,6 +486,103 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, EmStreamC
     }
 }
 
+GstElement *find_element_by_name(GstBin *bin, const gchar *element_name) {
+    GstIterator *iter = gst_bin_iterate_elements(bin);
+    GValue item = G_VALUE_INIT;
+    GstElement *result = NULL;
+
+    while (gst_iterator_next(iter, &item) == GST_ITERATOR_OK) {
+        GstElement *element = GST_ELEMENT(g_value_get_object(&item));
+        if (g_strcmp0(GST_ELEMENT_NAME(element), element_name) == 0) {
+            result = element;
+            // Take a ref
+            // gst_object_ref(result);
+            g_value_unset(&item);
+            break;
+        }
+        if (GST_IS_BIN(element)) {
+            result = find_element_by_name(GST_BIN(element), element_name);
+            if (result) {
+                g_value_unset(&item);
+                break;
+            }
+        }
+        g_value_unset(&item);
+    }
+
+    gst_iterator_free(iter);
+    return result;
+}
+
+static void on_webrtcbin_stats(GstPromise *promise, GstElement *user_data) {
+    const GstStructure *reply = gst_promise_get_reply(promise);
+    gchar *str = gst_structure_to_string(reply);
+    g_print("webrtcbin stats: %s\n", str);
+    g_free(str);
+}
+
+static gboolean print_stats(EmStreamClient *sc) {
+    if (!sc) {
+        return G_SOURCE_CONTINUE;
+    }
+
+    GstElement *webrtcbin = gst_bin_get_by_name(GST_BIN(sc->pipeline), "webrtc");
+
+    GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_webrtcbin_stats, NULL, NULL);
+    g_signal_emit_by_name(webrtcbin, "get-stats", NULL, promise);
+
+    // FEC stats
+    for (int i = 0; i < 2; i++) {
+        gchar *name;
+        gchar *name_jitter;
+        gchar *name_storage;
+        if (i == 0) {
+            name = "rtpulpfecdec0";
+            name_jitter = "rtpjitterbuffer0";
+            name_storage = "rtpstorage0";
+        } else {
+            name = "rtpulpfecdec1";
+            name_jitter = "rtpjitterbuffer1";
+            name_storage = "rtpstorage1";
+        }
+
+        GstElement *rtpulpfecdec = find_element_by_name(GST_BIN(webrtcbin), name);
+
+        if (rtpulpfecdec) {
+            GValue pt = G_VALUE_INIT;
+            GValue recovered = G_VALUE_INIT;
+            GValue unrecovered = G_VALUE_INIT;
+
+            g_object_get_property(G_OBJECT(rtpulpfecdec), "pt", &pt);
+            g_object_get_property(G_OBJECT(rtpulpfecdec), "recovered", &recovered);
+            g_object_get_property(G_OBJECT(rtpulpfecdec), "unrecovered", &unrecovered);
+
+            g_object_set(G_OBJECT(rtpulpfecdec), "passthrough", FALSE, NULL);
+
+            g_print("FEC stats: pt %u, recovered %u, unrecovered %u\n",
+                   g_value_get_uint(&pt),
+                   g_value_get_uint(&recovered),
+                   g_value_get_uint(&unrecovered));
+
+            g_value_unset(&pt);
+            g_value_unset(&recovered);
+            g_value_unset(&unrecovered);
+        }
+
+//        GstElement *jitter = find_element_by_name(GST_BIN(webrtcbin), name_jitter);
+//        if (jitter) {
+//            g_object_set(jitter, "rfc7273-sync", TRUE, NULL);
+//        }
+
+        GstElement *rtpstorage = find_element_by_name(GST_BIN(webrtcbin), name_storage);
+        if (rtpstorage) {
+            g_object_set(rtpstorage, "size-time", 220000000, NULL);
+        }
+    }
+
+    return G_SOURCE_CONTINUE;
+}
+
 static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, EmStreamClient *sc) {
     // We don't care about sink pads
     if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
@@ -524,6 +622,9 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, EmStreamC
 
         g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_decodebin_pad_added), sc);
         gst_bin_add(GST_BIN(sc->pipeline), decodebin);
+
+        // Print stats repeatedly
+        sc->timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), sc);
 
         GstPad *sink_pad = gst_element_get_static_pad(decodebin, "sink");
         gst_pad_link(pad, sink_pad);
@@ -621,7 +722,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     // the pipeline will be started by the connection.
     g_signal_emit_by_name(emconn, "set-pipeline", GST_PIPELINE(sc->pipeline), NULL);
 
-    sc->timeout_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), sc);
+    sc->timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), sc);
 }
 
 static void on_drop_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
