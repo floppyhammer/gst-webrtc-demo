@@ -20,10 +20,7 @@
 
 const bool ENABLE_AUDIO = 0;
 
-#define USE_H264
-
-// Use x264enc instead of encodebin
-// #define USE_X264ENC // Software encoder
+#define USE_H265
 
 static SignalingServer* signaling_server = NULL;
 
@@ -95,10 +92,10 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
 
         GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
 
-#ifdef USE_H264
+#ifdef USE_H265
         GstCaps* caps = gst_caps_from_string(
             "application/x-rtp,"
-            "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,"
+            "payload=96,encoding-name=H265,clock-rate=90000,media=video,packetization-mode=(string)1,"
             "profile-level-id=(string)42e01f");
 #else
         GstCaps* caps =
@@ -144,7 +141,7 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
         for (int idx = 0; idx < transceivers->len; idx++) {
             GstWebRTCRTPTransceiver* trans = g_array_index(transceivers, GstWebRTCRTPTransceiver*, idx);
             g_object_set(trans, "direction", GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY, NULL);
-            g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, "fec-percentage", 20, NULL);
+            g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, "fec-percentage", 5, NULL);
         }
 
         g_array_unref(transceivers);
@@ -561,23 +558,22 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "identity signal-handoffs=true name=identity ! "
         "timeoverlay ! "
 #ifndef ANDROID
-        "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! " // Local display sink for latency
-                                                                                  // comparison
+        // Local display sink for latency comparison
+        "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! "
 #endif
-#ifdef USE_H264
-    #ifdef USE_X264ENC
-        "x264enc tune=zerolatency bitrate=8192 ! "
-        "video/x-h264,profile=baseline ! "
-    #else
+#ifdef USE_H265
+        // Software encoder
+        // "x264enc tune=zerolatency bitrate=8000 ! "
+        // "video/x-h264,profile=baseline ! "
+
         // zerolatency is not available for some hw encoders
-        "encodebin2 profile=\"video/x-h264|element-properties,bitrate=8192\" ! "
-    #endif
+        "encodebin2 profile=\"video/x-h265|element-properties,bitrate=4000\" ! "
 #else
-        "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=8192000\" ! "
+        "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=4000000\" ! "
 #endif
-#ifdef USE_H264
-        "h264parse ! "
-        "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
+#ifdef USE_H265
+        "h265parse ! "
+        "rtph265pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else
         "rtpvp8pay ! "

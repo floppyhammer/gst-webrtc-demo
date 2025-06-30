@@ -17,7 +17,7 @@ static gchar *websocket_uri = NULL;
 
 // If you don't have a local network, use `adb forward tcp:8080 tcp:8080` to map Android port
 #define DEFAULT_WEBSOCKET_URI "ws://127.0.0.1:8080/ws"
-// #define DEFAULT_WEBSOCKET_URI "ws://10.11.9.31:8080/ws"
+// #define DEFAULT_WEBSOCKET_URI "ws://10.11.9.192:8080/ws"
 
 static GOptionEntry options[] = {{
                                      "websocket-uri",
@@ -90,7 +90,7 @@ static void webrtc_on_data_channel_cb(GstElement *webrtcbin, GstWebRTCDataChanne
     ws_state.data_channel = GST_WEBRTC_DATA_CHANNEL(new_data_channel);
 
     // Send the message repeatedly
-    guint timeout_src_id_msg = g_timeout_add_seconds(3, data_channel_send_message, NULL);
+    guint timeout_src_id_msg = g_timeout_add_seconds(3, G_SOURCE_FUNC(data_channel_send_message), NULL);
 
     g_signal_connect(new_data_channel,
                      "on-close",
@@ -232,6 +232,8 @@ static void handle_media_stream(GstPad *pad, GstElement *pipeline, const char *c
         GstElement *identity = gst_element_factory_make("identity", NULL);
         g_assert_nonnull(identity);
         g_object_set(identity, "signal-handoffs", TRUE, NULL);
+
+        g_object_set(sink, "sync", FALSE, NULL);
 
         gst_bin_add_many(GST_BIN(pipeline), q, conv, sink, identity, NULL);
         gst_element_sync_state_with_parent(q);
@@ -546,14 +548,14 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         g_assert(gst_element_set_state(ws_state.pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE);
 
         // Print stats repeatedly
-        ws_state.timeout_src_id_print_stats = g_timeout_add_seconds(3, print_stats, NULL);
+        ws_state.timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), NULL);
     }
 }
 
 int create_client(int argc, char *argv[]) {
     GError *error = NULL;
 
-    // setenv("GST_DEBUG", "rtpbin:5,rtpulpfecdec:7,rtpjitterbuffer:2,rtpstorage:7,rtpstorage:5", 1);
+    setenv("GST_DEBUG", "rtpulpfecdec:7", 1);
     // setenv("GST_DEBUG", "GST_TRACER:7", 1);
     // setenv("GST_TRACERS", "latency(flags=pipeline)", 1); // Latency
     // setenv("GST_DEBUG_FILE", "./latency.log", 1);

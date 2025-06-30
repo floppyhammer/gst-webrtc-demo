@@ -11,7 +11,7 @@ gst-launch-1.0 -v \
   queue ! \
   videoconvert ! \
   autovideosink t1. ! \
-  x264enc tune=zerolatency bitrate=8000 ! \
+  x264enc tune=zerolatency bitrate=4000 ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
   udpsink host=10.11.9.192 port=5000
@@ -42,7 +42,7 @@ gst-launch-1.0 -v \
   queue ! \
   videoconvert ! \
   autovideosink t1. ! \
-  x264enc tune=zerolatency bitrate=8000 ! \
+  x264enc tune=zerolatency bitrate=4000 ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
   queue ! \
@@ -75,7 +75,7 @@ gst-launch-1.0 -v \
   videoconvert ! \
   autovideosink t1. ! \
   queue ! \
-  x264enc tune=zerolatency bitrate=8000 ! \
+  encodebin2 profile='video/x-h264|element-properties,bitrate=4000' ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
   rtpulpfecenc percentage=20 pt=122 ! \
@@ -86,14 +86,13 @@ Receiver
 
 ```bash
 gst-launch-1.0 -v \
-  udpsrc port=5000 caps='application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)H264' ! \
+  udpsrc port=5000 caps='application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)VP8' ! \
   rtpstorage size-time=220000000 ! \
   rtpssrcdemux ! \
   application/x-rtp,clock-rate=90000,media=video,encoding-name=H264 ! \
   rtpjitterbuffer do-lost=1 latency=5 ! \
   rtpulpfecdec pt=122 ! \
-  rtph264depay ! \
-  avdec_h264 ! \
+  decodebin3 ! \
   videoconvert ! \
   autovideosink
 ```
@@ -112,7 +111,7 @@ gst-launch-1.0 -v \
   queue ! \
   videoconvert ! \
   autovideosink t1. ! \
-  x264enc key-int-max=60 tune=zerolatency bitrate=8000 ! \
+  x264enc key-int-max=60 tune=zerolatency bitrate=4000 ! \
   queue ! mpegtsmux ! rtpmp2tpay ssrc=0 ! rtp.send_rtp_sink_0 \
   rtp.send_rtp_src_0 ! udpsink host=10.11.9.192 port=5000 \
   rtp.send_fec_src_0_0 ! udpsink host=10.11.9.192 port=5002 async=false \
@@ -160,7 +159,7 @@ ffplay -fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 1 -stric
 Sender
 
 ```bash
-ffmpeg -re -i test.mp4 -preset ultrafast -tune zerolatency -codec libx264 -f rtp -sdp_file test_video.sdp "rtp://10.11.9.192:5100"
+ffmpeg -re -i test.mp4 -preset ultrafast -tune zerolatency -codec libx264 -f rtp -sdp_file test_video.sdp "rtp://10.11.9.192:5000"
 ```
 
 Receiver
