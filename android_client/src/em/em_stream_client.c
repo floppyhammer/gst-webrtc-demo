@@ -363,8 +363,21 @@ static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpo
 }
 
 static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *trans) {
-    g_print("Hit on_new_transceiver\n");
     g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
+
+    // Adjust UDP buffer size (IMPORTANT)
+    GstWebRTCICETransport *ice_transport = NULL;
+    g_object_get(trans, "ice-transport", &ice_transport, NULL);
+
+    if (ice_transport) {
+        g_object_set(ice_transport,
+                     "recv-buffer-size",
+                     8 * 1024 * 1024, // Receiver 8MB
+                     "send-buffer-size",
+                     4 * 1024 * 1024, // Sender 4MB
+                     NULL);
+        g_object_unref(ice_transport);
+    }
 }
 
 static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char *convert_name, const char *sink_name) {
@@ -560,19 +573,14 @@ static gboolean print_stats(EmStreamClient *sc) {
             g_object_set(G_OBJECT(rtpulpfecdec), "passthrough", FALSE, NULL);
 
             g_print("FEC stats: pt %u, recovered %u, unrecovered %u\n",
-                   g_value_get_uint(&pt),
-                   g_value_get_uint(&recovered),
-                   g_value_get_uint(&unrecovered));
+                    g_value_get_uint(&pt),
+                    g_value_get_uint(&recovered),
+                    g_value_get_uint(&unrecovered));
 
             g_value_unset(&pt);
             g_value_unset(&recovered);
             g_value_unset(&unrecovered);
         }
-
-//        GstElement *jitter = find_element_by_name(GST_BIN(webrtcbin), name_jitter);
-//        if (jitter) {
-//            g_object_set(jitter, "rfc7273-sync", TRUE, NULL);
-//        }
 
         GstElement *rtpstorage = find_element_by_name(GST_BIN(webrtcbin), name_storage);
         if (rtpstorage) {

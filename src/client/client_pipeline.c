@@ -37,6 +37,7 @@ struct MyState {
     GstWebRTCDataChannel *data_channel;
     // todo: release
     guint timeout_src_id_print_stats;
+    guint timeout_src_id_dot_data;
 };
 
 struct MyState ws_state = {};
@@ -419,6 +420,20 @@ out:
 
 static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *trans) {
     g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
+
+    // Adjust UDP buffer size (IMPORTANT)
+    GstWebRTCICETransport *ice_transport = NULL;
+    g_object_get(trans, "ice-transport", &ice_transport, NULL);
+
+    if (ice_transport) {
+        g_object_set(ice_transport,
+                     "recv-buffer-size",
+                     8 * 1024 * 1024, // Receiver 8MB
+                     "send-buffer-size",
+                     4 * 1024 * 1024, // Sender 4MB
+                     NULL);
+        g_object_unref(ice_transport);
+    }
 }
 
 // This is the gstwebrtc entry point where we create the offer and so on.
@@ -509,6 +524,17 @@ static gboolean print_stats() {
     return G_SOURCE_CONTINUE;
 }
 
+static gboolean check_pipeline_dot_data() {
+    if (!ws_state.pipeline) {
+        return G_SOURCE_CONTINUE;
+    }
+
+    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(ws_state.pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    g_free(dot_data);
+
+    return G_SOURCE_CONTINUE;
+}
+
 static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer user_data) {
     GError *error = NULL;
 
@@ -549,6 +575,7 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
 
         // Print stats repeatedly
         ws_state.timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), NULL);
+        ws_state.timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), NULL);
     }
 }
 

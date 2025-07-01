@@ -606,6 +606,27 @@ static void emconn_websocket_connected_cb(GObject *session, GAsyncResult *res, E
     ALOGI("%s: Done with function", __FUNCTION__);
 }
 
+static void on_ice_connection_state_change(GstElement *webrtcbin, GParamSpec *pspec, gpointer user_data) {
+    GstWebRTCICEConnectionState state;
+    g_object_get(webrtcbin, "ice-connection-state", &state, NULL);
+
+    if (state == GST_WEBRTC_ICE_CONNECTION_STATE_CONNECTED) {
+        GObject *sctp_transport = NULL;
+        g_object_get(webrtcbin, "sctptransport", &sctp_transport, NULL);
+
+        if (sctp_transport) {
+            // Adjust SCTP buffer size
+            g_object_set(sctp_transport,
+                         "sctp-association-send-buffer-size",
+                         2 * 1024 * 1024, // Sender 2MB
+                         "sctp-association-recv-buffer-size",
+                         4 * 1024 * 1024, // Receiveer 4MB
+                         NULL);
+            g_object_unref(sctp_transport);
+        }
+    }
+}
+
 void em_connection_set_pipeline(EmConnection *emconn, GstPipeline *pipeline) {
     g_assert_nonnull(pipeline);
     if (emconn->pipeline) {
@@ -630,6 +651,10 @@ void em_connection_set_pipeline(EmConnection *emconn, GstPipeline *pipeline) {
                      "deep-notify::connection-state",
                      G_CALLBACK(emconn_webrtc_deep_notify_callback),
                      emconn);
+    //    g_signal_connect(emconn->webrtcbin,
+    //                     "on-ice-connection-state-change",
+    //                     G_CALLBACK(on_ice_connection_state_change),
+    //                     NULL);
 }
 
 static void emconn_connect_internal(EmConnection *emconn, enum em_status status) {
