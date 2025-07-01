@@ -11,7 +11,7 @@ gst-launch-1.0 -v \
   queue ! \
   videoconvert ! \
   autovideosink t1. ! \
-  x264enc tune=zerolatency bitrate=4000 ! \
+  encodebin2 profile='video/x-h264|element-properties,bitrate=4000' ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
   udpsink host=10.11.9.192 port=5000
@@ -21,7 +21,7 @@ Receiver
 
 ```bash
 gst-launch-1.0 -v \
-  udpsrc port=5000 caps='application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)H264' ! \
+  udpsrc port=5000 buffer-size=10000000 caps='application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)H264' ! \
   rtpjitterbuffer ! \
   rtph264depay ! \
   avdec_h264 ! \
