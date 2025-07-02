@@ -579,7 +579,7 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
 int create_client(int argc, char *argv[]) {
     GError *error = NULL;
 
-    setenv("GST_DEBUG", "rtpulpfecdec:7", 1);
+    // setenv("GST_DEBUG", "rtpulpfecdec:7", 1);
     // setenv("GST_DEBUG", "GST_TRACER:7", 1);
     // setenv("GST_TRACERS", "latency(flags=pipeline)", 1); // Latency
     // setenv("GST_DEBUG_FILE", "./latency.log", 1);

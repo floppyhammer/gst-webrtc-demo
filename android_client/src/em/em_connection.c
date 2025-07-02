@@ -88,7 +88,7 @@ static void em_connection_set_property(GObject *object, guint property_id, const
         case PROP_WEBSOCKET_URI:
             g_free(self->websocket_uri);
             self->websocket_uri = g_value_dup_string(value);
-            ALOGI("websocket URI assigned; %s", self->websocket_uri);
+            ALOGI("Websocket URI assigned: %s", self->websocket_uri);
             break;
 
         default:
@@ -292,6 +292,7 @@ static const char *peer_connection_state_to_string(GstWebRTCPeerConnectionState 
             return "!Unknown!";
     }
 }
+
 #undef MAKE_CASE
 
 static void emconn_update_status(EmConnection *emconn, enum em_status status) {

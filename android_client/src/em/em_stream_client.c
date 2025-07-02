@@ -499,6 +499,39 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, EmStreamC
     }
 }
 
+static void on_prepare_data_channel(GstElement *webrtcbin,
+                                    GstWebRTCDataChannel *channel,
+                                    gboolean is_local,
+                                    gpointer udata) {
+    // Adjust receive buffer size (IMPORTANT)
+    {
+        GstWebRTCSCTPTransport *sctp_transport = NULL;
+        g_object_get(webrtcbin, "sctp-transport", &sctp_transport, NULL);
+        if (!sctp_transport) {
+            g_error("Failed to get sctp_transport!");
+        }
+
+        GstWebRTCDTLSTransport *dtls_transport = NULL;
+        g_object_get(sctp_transport, "transport", &dtls_transport, NULL);
+        if (!dtls_transport) {
+            g_error("Failed to get dtls_transport!");
+        }
+
+        GstWebRTCICETransport *ice_transport = NULL;
+        g_object_get(dtls_transport, "transport", &ice_transport, NULL);
+
+        if (ice_transport) {
+            g_object_set(ice_transport, "receive-buffer-size", 8 * 1024 * 1024, NULL);
+        } else {
+            g_error("Failed to get ice_transport!");
+        }
+
+        g_object_unref(ice_transport);
+        g_object_unref(dtls_transport);
+        g_object_unref(sctp_transport);
+    }
+}
+
 GstElement *find_element_by_name(GstBin *bin, const gchar *element_name) {
     GstIterator *iter = gst_bin_iterate_elements(bin);
     GValue item = G_VALUE_INIT;
@@ -658,11 +691,6 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     g_assert_nonnull(sc);
     g_assert_nonnull(emconn);
 
-    //    GError *error = NULL;
-
-    // decodebin3 seems to .. hang?
-    // omxh264dec doesn't seem to exist
-
     //    GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODABLE,
     //                                                            GST_RANK_MARGINAL);
     //
@@ -711,6 +739,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     g_object_set(webrtcbin, "latency", 0, NULL);
     g_signal_connect(webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
     g_signal_connect(webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), sc);
+    g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
 
     gst_bin_add_many(GST_BIN(sc->pipeline), webrtcbin, NULL);
 
