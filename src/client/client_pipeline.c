@@ -13,24 +13,10 @@
 
 #include "stdio.h"
 
-static gchar *websocket_uri = NULL;
-
-// If you don't have a local network, use `adb forward tcp:8080 tcp:8080` to map Android port
 #define DEFAULT_WEBSOCKET_URI "ws://127.0.0.1:8080/ws"
 // #define DEFAULT_WEBSOCKET_URI "ws://10.11.9.192:8080/ws"
 
-static GOptionEntry options[] = {{
-                                     "websocket-uri",
-                                     'u',
-                                     0,
-                                     G_OPTION_ARG_STRING,
-                                     &websocket_uri,
-                                     "Websocket URI of webrtc signaling connection",
-                                     "URI",
-                                 },
-                                 {NULL}};
-
-struct MyState {
+struct RecvState {
     SoupWebsocketConnection *connection;
     GstElement *pipeline;
     GstElement *webrtcbin;
@@ -40,7 +26,7 @@ struct MyState {
     guint timeout_src_id_dot_data;
 };
 
-struct MyState ws_state = {};
+struct RecvState recv_state = {};
 
 /*
  *
@@ -79,7 +65,7 @@ static void data_channel_message_string_cb(GstWebRTCDataChannel *data_channel, g
 }
 
 static gboolean data_channel_send_message(gpointer unused) {
-    g_signal_emit_by_name(ws_state.data_channel, "send-string", "Hi! from test client");
+    g_signal_emit_by_name(recv_state.data_channel, "send-string", "Hi! from test client");
 
     return G_SOURCE_REMOVE;
 }
@@ -87,8 +73,8 @@ static gboolean data_channel_send_message(gpointer unused) {
 static void webrtc_on_data_channel_cb(GstElement *webrtcbin, GstWebRTCDataChannel *new_data_channel, void *user_data) {
     g_print("Successfully created data channel\n");
 
-    g_assert_null(ws_state.data_channel);
-    ws_state.data_channel = GST_WEBRTC_DATA_CHANNEL(new_data_channel);
+    g_assert_null(recv_state.data_channel);
+    recv_state.data_channel = GST_WEBRTC_DATA_CHANNEL(new_data_channel);
 
     // Send the message repeatedly
     guint timeout_src_id_msg = g_timeout_add_seconds(3, G_SOURCE_FUNC(data_channel_send_message), NULL);
@@ -165,7 +151,7 @@ void send_sdp_answer(const gchar *sdp) {
     JsonNode *root = json_builder_get_root(builder);
 
     gchar *msg_str = json_to_string(root, TRUE);
-    soup_websocket_connection_send_text(ws_state.connection, msg_str);
+    soup_websocket_connection_send_text(recv_state.connection, msg_str);
     g_clear_pointer(&msg_str, g_free);
 
     json_node_unref(root);
@@ -192,7 +178,7 @@ static void webrtc_on_ice_candidate_cb(GstElement *webrtcbin, guint mlineindex, 
     JsonNode *root = json_builder_get_root(builder);
 
     gchar *msg_str = json_to_string(root, TRUE);
-    soup_websocket_connection_send_text(ws_state.connection, msg_str);
+    soup_websocket_connection_send_text(recv_state.connection, msg_str);
     g_clear_pointer(&msg_str, g_free);
 
     json_node_unref(root);
@@ -205,7 +191,7 @@ static void on_handoff(GstElement *identity, GstBuffer *buffer, gpointer user_da
     // g_print("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
 }
 
-static GstElement *autovideosink = NULL;
+/// Handle incoming media stream
 static void handle_media_stream(GstPad *pad, GstElement *pipeline, const char *convert_name, const char *sink_name) {
     gst_println("Trying to handle stream with %s ! %s", convert_name, sink_name);
 
@@ -244,8 +230,6 @@ static void handle_media_stream(GstPad *pad, GstElement *pipeline, const char *c
         gst_element_link_many(q, conv, identity, sink, NULL);
 
         g_signal_connect(identity, "handoff", G_CALLBACK(on_handoff), NULL);
-
-        autovideosink = sink;
     }
 
     GstPad *qpad = gst_element_get_static_pad(q, "sink");
@@ -261,8 +245,6 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, GstElemen
     if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
         return;
     }
-
-    g_print("Hit on_decodebin_pad_added\n");
 
     GstCaps *caps = NULL;
 
@@ -335,7 +317,7 @@ static void on_answer_created(GstPromise *promise, gpointer user_data) {
     gst_promise_unref(promise);
     g_assert(answer);
 
-    g_signal_emit_by_name(ws_state.webrtcbin, "set-local-description", answer, NULL);
+    g_signal_emit_by_name(recv_state.webrtcbin, "set-local-description", answer, NULL);
 
     gchar *sdp = gst_sdp_message_as_text(answer->sdp);
     send_sdp_answer(sdp);
@@ -359,12 +341,12 @@ static void process_sdp_offer(const gchar *sdp) {
     if (desc) {
         GstPromise *promise = gst_promise_new();
 
-        g_signal_emit_by_name(ws_state.webrtcbin, "set-remote-description", desc, promise);
+        g_signal_emit_by_name(recv_state.webrtcbin, "set-remote-description", desc, promise);
 
         gst_promise_wait(promise);
         gst_promise_unref(promise);
 
-        g_signal_emit_by_name(ws_state.webrtcbin,
+        g_signal_emit_by_name(recv_state.webrtcbin,
                               "create-answer",
                               NULL,
                               gst_promise_new_with_change_func((GstPromiseChangeFunc)on_answer_created, NULL, NULL));
@@ -379,7 +361,7 @@ out:
 static void process_candidate(guint mlineindex, const gchar *candidate) {
     g_print("Received ICE candidate: %d %s\n", mlineindex, candidate);
 
-    g_signal_emit_by_name(ws_state.webrtcbin, "add-ice-candidate", mlineindex, candidate);
+    g_signal_emit_by_name(recv_state.webrtcbin, "add-ice-candidate", mlineindex, candidate);
 }
 
 static void websocket_message_cb(SoupWebsocketConnection *connection, gint type, GBytes *message, gpointer user_data) {
@@ -428,9 +410,9 @@ static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *tran
     if (ice_transport) {
         g_object_set(ice_transport,
                      "recv-buffer-size",
-                     8 * 1024 * 1024, // Receiver 8MB
+                     8 * 1024 * 1024, // 8MB
                      "send-buffer-size",
-                     4 * 1024 * 1024, // Sender 4MB
+                     4 * 1024 * 1024, // 4MB
                      NULL);
         g_object_unref(ice_transport);
     }
@@ -478,17 +460,12 @@ static void on_webrtcbin_stats(GstPromise *promise, GstElement *user_data) {
 }
 
 static gboolean print_stats() {
-    if (!ws_state.webrtcbin) {
+    if (!recv_state.webrtcbin) {
         return G_SOURCE_CONTINUE;
     }
 
     GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_webrtcbin_stats, NULL, NULL);
-    g_signal_emit_by_name(ws_state.webrtcbin, "get-stats", NULL, promise);
-
-    if (autovideosink) {
-        GstClockTime running_time = gst_element_get_current_running_time(autovideosink);
-        g_print("autovideosink running time: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(running_time));
-    }
+    g_signal_emit_by_name(recv_state.webrtcbin, "get-stats", NULL, promise);
 
     // FEC stats
     for (int i = 0; i < 2; i++) {
@@ -499,7 +476,7 @@ static gboolean print_stats() {
             name = "rtpulpfecdec1";
         }
 
-        GstElement *rtpulpfecdec = find_element_by_name(GST_BIN(ws_state.webrtcbin), name);
+        GstElement *rtpulpfecdec = find_element_by_name(GST_BIN(recv_state.webrtcbin), name);
 
         if (rtpulpfecdec) {
             GValue pt = G_VALUE_INIT;
@@ -525,11 +502,11 @@ static gboolean print_stats() {
 }
 
 static gboolean check_pipeline_dot_data() {
-    if (!ws_state.pipeline) {
+    if (!recv_state.pipeline) {
         return G_SOURCE_CONTINUE;
     }
 
-    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(ws_state.pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(recv_state.pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
     g_free(dot_data);
 
     return G_SOURCE_CONTINUE;
@@ -538,44 +515,44 @@ static gboolean check_pipeline_dot_data() {
 static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer user_data) {
     GError *error = NULL;
 
-    g_assert(!ws_state.connection);
+    g_assert(!recv_state.connection);
 
-    ws_state.connection = soup_session_websocket_connect_finish(SOUP_SESSION(session), res, &error);
+    recv_state.connection = soup_session_websocket_connect_finish(SOUP_SESSION(session), res, &error);
+
     if (error) {
         g_print("Error creating websocket: %s\n", error->message);
         g_clear_error(&error);
     } else {
         g_print("Websocket connected\n");
 
-        g_signal_connect(ws_state.connection, "message", G_CALLBACK(websocket_message_cb), NULL);
+        g_signal_connect(recv_state.connection, "message", G_CALLBACK(websocket_message_cb), NULL);
 
-        ws_state.pipeline = gst_pipeline_new("webrtc-recv-pipeline");
+        recv_state.pipeline = gst_pipeline_new("webrtc-recv-pipeline");
 
-        ws_state.webrtcbin = gst_element_factory_make("webrtcbin", NULL);
+        recv_state.webrtcbin = gst_element_factory_make("webrtcbin", NULL);
         // Matching this to the offerer's bundle policy is necessary for negotiation
-        g_object_set(ws_state.webrtcbin, "bundle-policy", GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE, NULL);
-        g_object_set(ws_state.webrtcbin, "latency", 0, NULL);
+        g_object_set(recv_state.webrtcbin, "bundle-policy", GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE, NULL);
+        g_object_set(recv_state.webrtcbin, "latency", 5, NULL);
 
-        gst_bin_add_many(GST_BIN(ws_state.pipeline), ws_state.webrtcbin, NULL);
+        gst_bin_add_many(GST_BIN(recv_state.pipeline), recv_state.webrtcbin, NULL);
 
         // Connect callbacks on sinks
+        g_signal_connect(recv_state.webrtcbin, "on-negotiation-needed", G_CALLBACK(on_negotiation_needed), NULL);
+        g_signal_connect(recv_state.webrtcbin, "on-data-channel", G_CALLBACK(webrtc_on_data_channel_cb), NULL);
+        g_signal_connect(recv_state.webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
+        g_signal_connect(recv_state.webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
+        g_signal_connect(recv_state.webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), recv_state.pipeline);
 
-        g_signal_connect(ws_state.webrtcbin, "on-negotiation-needed", G_CALLBACK(on_negotiation_needed), NULL);
-        g_signal_connect(ws_state.webrtcbin, "on-data-channel", G_CALLBACK(webrtc_on_data_channel_cb), NULL);
-        g_signal_connect(ws_state.webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
-        g_signal_connect(ws_state.webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
-        g_signal_connect(ws_state.webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), ws_state.pipeline);
-
-        GstBus *bus = gst_element_get_bus(ws_state.pipeline);
-        gst_bus_add_watch(bus, gst_bus_cb, ws_state.pipeline);
+        GstBus *bus = gst_element_get_bus(recv_state.pipeline);
+        gst_bus_add_watch(bus, gst_bus_cb, recv_state.pipeline);
         gst_clear_object(&bus);
 
         // Start pipeline
-        g_assert(gst_element_set_state(ws_state.pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE);
+        g_assert(gst_element_set_state(recv_state.pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE);
 
         // Print stats repeatedly
-        ws_state.timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), NULL);
-        ws_state.timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), NULL);
+        recv_state.timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), NULL);
+        recv_state.timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), NULL);
     }
 }
 
@@ -589,16 +566,25 @@ int create_client(int argc, char *argv[]) {
 
     gst_init(&argc, &argv);
 
+    gchar *websocket_uri = g_strdup(DEFAULT_WEBSOCKET_URI);
+
+    const GOptionEntry options[] = {{
+                                        "websocket-uri",
+                                        'u',
+                                        0,
+                                        G_OPTION_ARG_STRING,
+                                        &websocket_uri,
+                                        "Websocket URI of webrtc signaling connection",
+                                        "URI",
+                                    },
+                                    {NULL}};
+
     GOptionContext *option_context = g_option_context_new(NULL);
     g_option_context_add_main_entries(option_context, options, NULL);
 
     if (!g_option_context_parse(option_context, &argc, &argv, &error)) {
         g_print("Option context parsing failed: %s\n", error->message);
         exit(1);
-    }
-
-    if (!websocket_uri) {
-        websocket_uri = g_strdup(DEFAULT_WEBSOCKET_URI);
     }
 
     SoupSession *soup_session = soup_session_new();
