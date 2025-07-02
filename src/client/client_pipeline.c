@@ -128,7 +128,7 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer data) {
             g_free(debug_msg);
         } break;
         case GST_MESSAGE_EOS: {
-            g_error("Got EOS!!");
+            g_error("Got EOS!");
         } break;
         default:
             break;

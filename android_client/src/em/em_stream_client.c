@@ -502,34 +502,32 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, EmStreamC
 static void on_prepare_data_channel(GstElement *webrtcbin,
                                     GstWebRTCDataChannel *channel,
                                     gboolean is_local,
-                                    gpointer udata) {
+                                    gpointer user_data) {
     // Adjust receive buffer size (IMPORTANT)
-    {
-        GstWebRTCSCTPTransport *sctp_transport = NULL;
-        g_object_get(webrtcbin, "sctp-transport", &sctp_transport, NULL);
-        if (!sctp_transport) {
-            g_error("Failed to get sctp_transport!");
-        }
-
-        GstWebRTCDTLSTransport *dtls_transport = NULL;
-        g_object_get(sctp_transport, "transport", &dtls_transport, NULL);
-        if (!dtls_transport) {
-            g_error("Failed to get dtls_transport!");
-        }
-
-        GstWebRTCICETransport *ice_transport = NULL;
-        g_object_get(dtls_transport, "transport", &ice_transport, NULL);
-
-        if (ice_transport) {
-            g_object_set(ice_transport, "receive-buffer-size", 8 * 1024 * 1024, NULL);
-        } else {
-            g_error("Failed to get ice_transport!");
-        }
-
-        g_object_unref(ice_transport);
-        g_object_unref(dtls_transport);
-        g_object_unref(sctp_transport);
+    GstWebRTCSCTPTransport *sctp_transport = NULL;
+    g_object_get(webrtcbin, "sctp-transport", &sctp_transport, NULL);
+    if (!sctp_transport) {
+        g_error("Failed to get sctp_transport!");
     }
+
+    GstWebRTCDTLSTransport *dtls_transport = NULL;
+    g_object_get(sctp_transport, "transport", &dtls_transport, NULL);
+    if (!dtls_transport) {
+        g_error("Failed to get dtls_transport!");
+    }
+
+    GstWebRTCICETransport *ice_transport = NULL;
+    g_object_get(dtls_transport, "transport", &ice_transport, NULL);
+
+    if (ice_transport) {
+        g_object_set(ice_transport, "receive-buffer-size", 16 * 1024 * 1024, NULL);
+    } else {
+        g_error("Failed to get ice_transport!");
+    }
+
+    g_object_unref(ice_transport);
+    g_object_unref(dtls_transport);
+    g_object_unref(sctp_transport);
 }
 
 GstElement *find_element_by_name(GstBin *bin, const gchar *element_name) {
@@ -573,6 +571,14 @@ static gboolean print_stats(EmStreamClient *sc) {
     }
 
     GstElement *webrtcbin = gst_bin_get_by_name(GST_BIN(sc->pipeline), "webrtc");
+
+//    GstElement *rtpbin = NULL;
+//    gst_bin_get_by_name(GST_BIN(webrtcbin), "rtpbin");
+//
+//    // For RTP session
+//    GstElement *rtpsession = gst_bin_get_by_name(GST_BIN(rtpbin), "rtpsession0");
+//    g_object_set(rtpsession, "rtcp-rr-bandwidth", 16777216, NULL);
+//    g_object_set(rtpsession, "bandwidth", 16777216, NULL);
 
     GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_webrtcbin_stats, NULL, NULL);
     g_signal_emit_by_name(webrtcbin, "get-stats", NULL, promise);
@@ -739,7 +745,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     g_object_set(webrtcbin, "latency", 0, NULL);
     g_signal_connect(webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
     g_signal_connect(webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), sc);
-    g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
+//    g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
 
     gst_bin_add_many(GST_BIN(sc->pipeline), webrtcbin, NULL);
 
