@@ -310,6 +310,39 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, GstElemen
     gst_object_unref(sink_pad);
 }
 
+static void on_prepare_data_channel(GstElement *webrtcbin,
+                                    GstWebRTCDataChannel *channel,
+                                    gboolean is_local,
+                                    gpointer udata) {
+    // Adjust receive buffer size (IMPORTANT)
+    {
+        GstWebRTCSCTPTransport *sctp_transport = NULL;
+        g_object_get(webrtcbin, "sctp-transport", &sctp_transport, NULL);
+        if (!sctp_transport) {
+            g_error("Failed to get sctp_transport!");
+        }
+
+        GstWebRTCDTLSTransport *dtls_transport = NULL;
+        g_object_get(sctp_transport, "transport", &dtls_transport, NULL);
+        if (!dtls_transport) {
+            g_error("Failed to get dtls_transport!");
+        }
+
+        GstWebRTCICETransport *ice_transport = NULL;
+        g_object_get(dtls_transport, "transport", &ice_transport, NULL);
+
+        if (ice_transport) {
+            g_object_set(ice_transport, "receive-buffer-size", 8 * 1024 * 1024, NULL);
+        } else {
+            g_error("Failed to get ice_transport!");
+        }
+
+        g_object_unref(ice_transport);
+        g_object_unref(dtls_transport);
+        g_object_unref(sctp_transport);
+    }
+}
+
 static void on_answer_created(GstPromise *promise, gpointer user_data) {
     GstWebRTCSessionDescription *answer = NULL;
 
@@ -402,20 +435,6 @@ out:
 
 static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *trans) {
     g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
-
-    // Adjust UDP buffer size (IMPORTANT)
-    GstWebRTCICETransport *ice_transport = NULL;
-    g_object_get(trans, "ice-transport", &ice_transport, NULL);
-
-    if (ice_transport) {
-        g_object_set(ice_transport,
-                     "recv-buffer-size",
-                     8 * 1024 * 1024, // 8MB
-                     "send-buffer-size",
-                     4 * 1024 * 1024, // 4MB
-                     NULL);
-        g_object_unref(ice_transport);
-    }
 }
 
 // This is the gstwebrtc entry point where we create the offer and so on.
@@ -542,6 +561,7 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         g_signal_connect(recv_state.webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
         g_signal_connect(recv_state.webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
         g_signal_connect(recv_state.webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), recv_state.pipeline);
+        g_signal_connect(recv_state.webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
 
         GstBus *bus = gst_element_get_bus(recv_state.pipeline);
         gst_bus_add_watch(bus, gst_bus_cb, recv_state.pipeline);
