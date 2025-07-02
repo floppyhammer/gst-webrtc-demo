@@ -18,8 +18,7 @@
 #define AUDIO_TEE_NAME "audio_tee"
 #define VIDEO_TEE_NAME "video_tee"
 
-const bool ENABLE_AUDIO = 0;
-
+#define ENABLE_AUDIO
 #define USE_H265
 
 static SignalingServer* signaling_server = NULL;
@@ -113,7 +112,8 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
         gst_object_unref(tee);
     }
 
-    if (ENABLE_AUDIO) {
+#ifdef ENABLE_AUDIO
+    {
         GstElement* tee = gst_bin_get_by_name(GST_BIN(pipeline), AUDIO_TEE_NAME);
         GstPad* src_pad = gst_element_request_pad_simple(tee, "src_%u");
 
@@ -132,6 +132,7 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
         gst_object_unref(sink_pad);
         gst_object_unref(tee);
     }
+#endif
 
     {
         GArray* transceivers;
@@ -539,10 +540,11 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     // Setup pipeline
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
-#ifdef ENABLE_AUDIO
-        // Audio
-        "audiotestsrc is-live=true wave=red-noise ! "
-        "audioconvert ! "
+        // "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
+        // "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
+        // "audiotestsrc is-live=true wave=red-noise ! "
+        "filesrc location=test.mp4 ! decodebin3 name=dec "
+        "dec. ! queue ! audioconvert ! "
         "audioresample ! "
         "queue ! "
         "opusenc perfect-timestamp=true ! "
@@ -550,11 +552,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "application/x-rtp,encoding-name=OPUS,media=audio,payload=127,ssrc=(uint)3484078953 ! "
         "queue ! "
         "tee name=%s allow-not-linked=true "
-#endif
-        // Video
-        "filesrc location=test.mp4 ! decodebin3 ! "
-        // "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
-        // "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
+        "dec. ! queue ! videoconvert ! "
         "identity signal-handoffs=true name=identity ! "
         "timeoverlay ! "
 #ifndef ANDROID
