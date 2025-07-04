@@ -1,4 +1,4 @@
-## RTP 1
+## RTP 1 (interchangeable with RTP 2)
 
 Sender
 
@@ -29,7 +29,7 @@ gst-launch-1.0 -v \
   autovideosink
 ```
 
-## RTP 2
+## RTP 2 (interchangeable with RTP 1)
 
 Sender
 
@@ -53,7 +53,7 @@ Receiver
 
 ```bash
 gst-launch-1.0 -v \
-  rtpsrc uri=rtp://localhost:5000?encoding-name=H264 ! \
+  rtpsrc uri=rtp://0.0.0.0:5000?encoding-name=H264 latency=5 ! \
   rtph264depay ! \
   avdec_h264 ! \
   videoconvert ! \
@@ -78,7 +78,7 @@ gst-launch-1.0 -v \
   encodebin2 profile='video/x-h264|element-properties,bitrate=4000' ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
-  rtpulpfecenc percentage=20 pt=122 ! \
+  rtpulpfecenc percentage=5 pt=122 ! \
   udpsink host=10.11.9.192 port=5000
 ```
 
@@ -86,7 +86,7 @@ Receiver
 
 ```bash
 gst-launch-1.0 -v \
-  udpsrc port=5000 caps='application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)VP8' ! \
+  udpsrc port=5000 buffer-size=10000000 caps='application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)VP8' ! \
   rtpstorage size-time=220000000 ! \
   rtpssrcdemux ! \
   application/x-rtp,clock-rate=90000,media=video,encoding-name=H264 ! \
