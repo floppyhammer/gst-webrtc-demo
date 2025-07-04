@@ -13,8 +13,8 @@
 
 #include "stdio.h"
 
-#define DEFAULT_WEBSOCKET_URI "ws://127.0.0.1:8080/ws"
-// #define DEFAULT_WEBSOCKET_URI "ws://10.11.9.192:8080/ws"
+#define DEFAULT_WEBSOCKET_URI "ws://127.0.0.1:52356/ws"
+// #define DEFAULT_WEBSOCKET_URI "ws://10.11.9.192:52356/ws"
 
 struct RecvState {
     SoupWebsocketConnection *connection;
@@ -111,18 +111,16 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer data) {
             GError *gerr;
             gchar *debug_msg;
             gst_message_parse_error(message, &gerr, &debug_msg);
-            GST_DEBUG_BIN_TO_DOT_FILE(pipeline, GST_DEBUG_GRAPH_SHOW_ALL, "mss-pipeline-ERROR");
             gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-            g_free(dot_data);
             g_error("Error: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
+            g_free(dot_data);
         } break;
         case GST_MESSAGE_WARNING: {
             GError *gerr;
             gchar *debug_msg;
             gst_message_parse_warning(message, &gerr, &debug_msg);
-            GST_DEBUG_BIN_TO_DOT_FILE(pipeline, GST_DEBUG_GRAPH_SHOW_ALL, "mss-pipeline-WARNING");
             g_warning("Warning: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
@@ -276,9 +274,6 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, GstElemen
     } else {
         gst_printerr("Unknown pad %s, ignoring", GST_PAD_NAME(pad));
     }
-
-    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    g_free(dot_data);
 }
 
 static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, GstElement *pipeline) {

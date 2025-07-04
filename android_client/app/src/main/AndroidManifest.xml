@@ -25,6 +25,7 @@ SPDX-License-Identifier: BSL-1.0
         android:name=".StreamingApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
+        android:icon="@mipmap/icon"
         android:label="@string/app_name">
 
         <activity

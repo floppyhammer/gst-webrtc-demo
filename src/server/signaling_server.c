@@ -197,7 +197,7 @@ static void signaling_server_init(SignalingServer *server) {
     soup_server_add_handler(server->soup_server, NULL, http_cb, server, NULL);
     soup_server_add_websocket_handler(server->soup_server, "/ws", NULL, NULL, websocket_cb, server, NULL);
 
-    soup_server_listen_all(server->soup_server, 8080, 0, &error);
+    soup_server_listen_all(server->soup_server, 52356, 0, &error);
     g_assert_no_error(error);
 }
 

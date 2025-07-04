@@ -18,7 +18,9 @@
 #define AUDIO_TEE_NAME "audio_tee"
 #define VIDEO_TEE_NAME "video_tee"
 
+// FIXME: enabling audio causes reconnection failure
 #define ENABLE_AUDIO
+
 #define USE_H265
 
 static SignalingServer* signaling_server = NULL;
@@ -199,13 +201,13 @@ gboolean data_channel_send_message(GstWebRTCDataChannel* data_channel) {
 static void data_channel_open_cb(GstWebRTCDataChannel* data_channel, struct MyGstData* mgd) {
     ALOGD("Data channel opened");
 
-    mgd->timeout_src_id_msg = g_timeout_add_seconds(3, G_SOURCE_FUNC(data_channel_send_message), data_channel);
+    // mgd->timeout_src_id_msg = g_timeout_add_seconds(3, G_SOURCE_FUNC(data_channel_send_message), data_channel);
 }
 
 static void data_channel_close_cb(GstWebRTCDataChannel* data_channel, struct MyGstData* mgd) {
     ALOGD("Data channel closed");
 
-    g_clear_handle_id(&mgd->timeout_src_id_msg, g_source_remove);
+    // g_clear_handle_id(&mgd->timeout_src_id_msg, g_source_remove);
     g_clear_object(&mgd->data_channel);
 }
 
@@ -543,7 +545,8 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         // "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
         // "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
         // "audiotestsrc is-live=true wave=red-noise ! "
-        "filesrc location=test.mp4 ! decodebin3 name=dec "
+        "filesrc location=test.mp4 ! "
+        "decodebin3 name=dec "
         "dec. ! queue ! audioconvert ! "
         "audioresample ! "
         "queue ! "
@@ -578,10 +581,9 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
 #endif
         "tee name=%s allow-not-linked=true",
-#ifdef ENABLE_AUDIO
         AUDIO_TEE_NAME,
-#endif
         VIDEO_TEE_NAME);
+
     // No webrtcbin yet until later!
 
     GstElement* pipeline = gst_parse_launch(pipeline_str, &error);

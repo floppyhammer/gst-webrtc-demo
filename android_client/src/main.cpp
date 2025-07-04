@@ -51,7 +51,7 @@ struct em_state {
 
 std::unique_ptr<Renderer> renderer;
 
-std::unique_ptr<EglData> initialEglData;
+std::unique_ptr<EglData> egl_data;
 
 EmStreamClient *stream_client{};
 
@@ -85,17 +85,14 @@ void onAppCmd(struct android_app *app, int32_t cmd) {
         case APP_CMD_INIT_WINDOW: {
             ALOGI("APP_CMD_INIT_WINDOW");
 
-            initialEglData = std::make_unique<EglData>(app->window);
-            initialEglData->makeCurrent();
+            egl_data = std::make_unique<EglData>(app->window);
+            egl_data->makeCurrent();
 
-            eglQuerySurface(initialEglData->display, initialEglData->surface, EGL_WIDTH, &_state.width);
-            eglQuerySurface(initialEglData->display, initialEglData->surface, EGL_HEIGHT, &_state.height);
+            eglQuerySurface(egl_data->display, egl_data->surface, EGL_WIDTH, &_state.width);
+            eglQuerySurface(egl_data->display, egl_data->surface, EGL_HEIGHT, &_state.height);
 
             stream_client = em_stream_client_new();
-            em_stream_client_set_egl_context(stream_client,
-                                             initialEglData->context,
-                                             initialEglData->display,
-                                             initialEglData->surface);
+            em_stream_client_set_egl_context(stream_client, egl_data->context, egl_data->display, egl_data->surface);
 
             _state.connection = g_object_ref_sink(em_connection_new_localhost());
 
@@ -203,20 +200,16 @@ void android_main(struct android_app *app) {
             continue;
         }
 
-        if (!initialEglData || !renderer || !stream_client) {
+        if (!egl_data || !renderer || !stream_client) {
             continue;
         }
 
-        initialEglData->makeCurrent();
+        egl_data->makeCurrent();
 
         struct timespec decodeEndTime;
         struct em_sample *sample = em_stream_client_try_pull_sample(stream_client, &decodeEndTime);
 
         if (sample == nullptr) {
-            if (prev_sample) {
-                // EM_POLL_RENDER_RESULT_REUSED_SAMPLE;
-                //                sample = prev_sample;
-            }
             continue;
         }
 
@@ -229,15 +222,16 @@ void android_main(struct android_app *app) {
 
         renderer->draw(sample->frame_texture_id, sample->frame_texture_target);
 
-        eglSwapBuffers(initialEglData->display, initialEglData->surface);
+        eglSwapBuffers(egl_data->display, egl_data->surface);
 
+        // Release old sample
         if (prev_sample != NULL) {
             em_stream_client_release_sample(stream_client, prev_sample);
             prev_sample = NULL;
         }
         prev_sample = sample;
 
-        initialEglData->makeNotCurrent();
+        egl_data->makeNotCurrent();
     }
 
     ALOGI("DEBUG: Exited main loop, cleaning up");
@@ -250,7 +244,7 @@ void android_main(struct android_app *app) {
 
     em_stream_client_destroy(&stream_client);
 
-    initialEglData = nullptr;
+    egl_data = nullptr;
 
     (*app->activity->vm).DetachCurrentThread();
 }

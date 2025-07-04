@@ -246,8 +246,6 @@ static void em_stream_client_finalize(EmStreamClient *self) {
  */
 
 static GstBusSyncReply bus_sync_handler_cb(GstBus *bus, GstMessage *msg, EmStreamClient *sc) {
-    // LOG_MSG(msg);
-
     /* Do not let GstGL retrieve the display handle on its own
      * because then it believes it owns it and calls eglTerminate()
      * when disposed */
@@ -272,8 +270,6 @@ static GstBusSyncReply bus_sync_handler_cb(GstBus *bus, GstMessage *msg, EmStrea
 }
 
 static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data) {
-    // LOG_MSG(message);
-
     GstBin *pipeline = GST_BIN(user_data);
 
     switch (GST_MESSAGE_TYPE(message)) {
@@ -282,22 +278,18 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
             gchar *debug_msg = NULL;
             gst_message_parse_error(message, &gerr, &debug_msg);
 
-            GST_DEBUG_BIN_TO_DOT_FILE(pipeline, GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-error");
-
             gchar *dot_data = gst_debug_bin_to_dot_data(pipeline, GST_DEBUG_GRAPH_SHOW_ALL);
-            ALOGE("gst_bus_cb: DOT data: %s", dot_data);
-            g_free(dot_data);
 
             ALOGE("gst_bus_cb: Error: %s (%s)", gerr->message, debug_msg);
             g_error("gst_bus_cb: Error: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
             g_free(debug_msg);
+            g_free(dot_data);
         } break;
         case GST_MESSAGE_WARNING: {
             GError *gerr = NULL;
             gchar *debug_msg = NULL;
             gst_message_parse_warning(message, &gerr, &debug_msg);
-            GST_DEBUG_BIN_TO_DOT_FILE(pipeline, GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-warning");
             ALOGW("gst_bus_cb: Warning: %s (%s)", gerr->message, debug_msg);
             g_warning("gst_bus_cb: Warning: %s (%s)", gerr->message, debug_msg);
             g_error_free(gerr);
@@ -364,20 +356,6 @@ static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpo
 
 static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *trans) {
     g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
-
-    // Adjust UDP buffer size (IMPORTANT)
-    GstWebRTCICETransport *ice_transport = NULL;
-    g_object_get(trans, "ice-transport", &ice_transport, NULL);
-
-    if (ice_transport) {
-        g_object_set(ice_transport,
-                     "recv-buffer-size",
-                     8 * 1024 * 1024, // Receiver 8MB
-                     "send-buffer-size",
-                     4 * 1024 * 1024, // Sender 4MB
-                     NULL);
-        g_object_unref(ice_transport);
-    }
 }
 
 static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char *convert_name, const char *sink_name) {
@@ -572,13 +550,13 @@ static gboolean print_stats(EmStreamClient *sc) {
 
     GstElement *webrtcbin = gst_bin_get_by_name(GST_BIN(sc->pipeline), "webrtc");
 
-//    GstElement *rtpbin = NULL;
-//    gst_bin_get_by_name(GST_BIN(webrtcbin), "rtpbin");
-//
-//    // For RTP session
-//    GstElement *rtpsession = gst_bin_get_by_name(GST_BIN(rtpbin), "rtpsession0");
-//    g_object_set(rtpsession, "rtcp-rr-bandwidth", 16777216, NULL);
-//    g_object_set(rtpsession, "bandwidth", 16777216, NULL);
+    //    GstElement *rtpbin = NULL;
+    //    gst_bin_get_by_name(GST_BIN(webrtcbin), "rtpbin");
+    //
+    //    // For RTP session
+    //    GstElement *rtpsession = gst_bin_get_by_name(GST_BIN(rtpbin), "rtpsession0");
+    //    g_object_set(rtpsession, "rtcp-rr-bandwidth", 16777216, NULL);
+    //    g_object_set(rtpsession, "bandwidth", 16777216, NULL);
 
     GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_webrtcbin_stats, NULL, NULL);
     g_signal_emit_by_name(webrtcbin, "get-stats", NULL, promise);
@@ -745,7 +723,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     g_object_set(webrtcbin, "latency", 0, NULL);
     g_signal_connect(webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
     g_signal_connect(webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), sc);
-//    g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
+    g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
 
     gst_bin_add_many(GST_BIN(sc->pipeline), webrtcbin, NULL);
 
@@ -837,8 +815,8 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
         return NULL;
     }
 
-    // We actually pull the sample in the new-sample signal handler, so here we're just receiving the sample already
-    // pulled.
+    // We actually pull the sample in the new-sample signal handler,
+    // so here we're just receiving the sample already pulled.
     GstSample *sample = NULL;
     struct timespec decode_end;
     {
@@ -847,10 +825,6 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
         sc->sample = NULL;
         decode_end = sc->sample_decode_end_ts;
     }
-
-    // Check pipeline
-    //    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    //    g_free(dot_data);
 
     if (sample == NULL) {
         if (gst_app_sink_is_eos(GST_APP_SINK(sc->appsink))) {
@@ -893,6 +867,7 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
         /* Check if we have 2D or OES textures */
         GstStructure *s = gst_caps_get_structure(caps, 0);
         const gchar *texture_target_str = gst_structure_get_string(s, "texture-target");
+
         if (g_str_equal(texture_target_str, GST_GL_TEXTURE_TARGET_EXTERNAL_OES_STR)) {
             sc->frame_texture_target = GL_TEXTURE_EXTERNAL_OES;
         } else if (g_str_equal(texture_target_str, GST_GL_TEXTURE_TARGET_2D_STR)) {
@@ -915,11 +890,7 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
     // Move sample ownership into the return value
     ret->sample = sample;
 
-    // Check pipeline
-    //    gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    //    g_free(dot_data);
-
-    return ret;
+    return (struct em_sample *)ret;
 }
 
 void em_stream_client_release_sample(EmStreamClient *sc, struct em_sample *ems) {
