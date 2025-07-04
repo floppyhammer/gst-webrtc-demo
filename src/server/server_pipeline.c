@@ -335,11 +335,36 @@ static void webrtc_candidate_cb(SignalingServer* server,
     g_debug("Remote candidate: %s", candidate);
 }
 
-static GstPadProbeReturn remove_webrtcbin_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
+static GstPadProbeReturn remove_webrtcbin_probe_audio(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
     GstElement* webrtcbin = GST_ELEMENT(user_data);
 
     gst_element_set_state(webrtcbin, GST_STATE_NULL);
     gst_bin_remove(GST_BIN(GST_ELEMENT_PARENT(webrtcbin)), webrtcbin);
+
+    return GST_PAD_PROBE_REMOVE;
+}
+
+static GstPadProbeReturn remove_webrtcbin_probe_cb_video(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
+    GstElement* webrtcbin = GST_ELEMENT(user_data);
+
+    GstPad* audio_sinkpad = gst_element_get_static_pad(webrtcbin, "sink_1");
+
+    // Handle audio sinkpad if there's any
+    if (audio_sinkpad) {
+        gst_pad_add_probe(GST_PAD_PEER(audio_sinkpad),
+                          GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
+                          remove_webrtcbin_probe_audio,
+                          webrtcbin,
+                          gst_object_unref);
+
+        gst_clear_object(&audio_sinkpad);
+    }
+    // Otherwise release webrtcbin directly
+    else {
+        gst_element_set_state(webrtcbin, GST_STATE_NULL);
+        gst_bin_remove(GST_BIN(GST_ELEMENT_PARENT(webrtcbin)), webrtcbin);
+        gst_object_unref(webrtcbin);
+    }
 
     return GST_PAD_PROBE_REMOVE;
 }
@@ -352,16 +377,16 @@ static void webrtc_client_disconnected_cb(SignalingServer* server, ClientId clie
     GstElement* webrtcbin = get_webrtcbin_for_client(pipeline, client_id);
 
     if (webrtcbin) {
-        GstPad* sinkpad = gst_element_get_static_pad(webrtcbin, "sink_0");
+        GstPad* video_sinkpad = gst_element_get_static_pad(webrtcbin, "sink_0");
 
-        if (sinkpad) {
-            gst_pad_add_probe(GST_PAD_PEER(sinkpad),
+        if (video_sinkpad) {
+            gst_pad_add_probe(GST_PAD_PEER(video_sinkpad),
                               GST_PAD_PROBE_TYPE_BLOCK_DOWNSTREAM,
-                              remove_webrtcbin_probe_cb,
+                              remove_webrtcbin_probe_cb_video,
                               webrtcbin,
-                              gst_object_unref);
+                              NULL);
 
-            gst_clear_object(&sinkpad);
+            gst_clear_object(&video_sinkpad);
         }
     }
 }
