@@ -566,7 +566,7 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         g_assert(gst_element_set_state(recv_state.pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE);
 
         // Print stats repeatedly
-        recv_state.timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), NULL);
+        // recv_state.timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), NULL);
         recv_state.timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), NULL);
     }
 }

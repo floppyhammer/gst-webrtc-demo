@@ -598,7 +598,6 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=4000000\" ! "
 #endif
 #ifdef USE_H265
-        "h265parse ! "
         "rtph265pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else

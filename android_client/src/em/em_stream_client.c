@@ -649,7 +649,7 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, EmStreamC
         gst_bin_add(GST_BIN(sc->pipeline), decodebin);
 
         // Print stats repeatedly
-        sc->timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), sc);
+//        sc->timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), sc);
 
         GstPad *sink_pad = gst_element_get_static_pad(decodebin, "sink");
         gst_pad_link(pad, sink_pad);
