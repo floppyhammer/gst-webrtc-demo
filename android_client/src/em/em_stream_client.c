@@ -347,7 +347,16 @@ static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpo
         static int64_t previous_time = 0;
         if (previous_pts != 0) {
             int64_t pts_diff = (pts - previous_pts) / 1e6;
-            ALOGD("Received frame PTS: %" GST_TIME_FORMAT ", PTS diff: %ld", GST_TIME_ARGS(pts), pts_diff);
+
+            if (pts_diff > 50) {
+                ALOGE("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT ", PTS diff: %ld",
+                      GST_TIME_ARGS(pts),
+                      pts_diff);
+            } else {
+                ALOGD("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT ", PTS diff: %ld",
+                      GST_TIME_ARGS(pts),
+                      pts_diff);
+            }
         }
         previous_pts = pts;
     }
@@ -643,13 +652,16 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, EmStreamC
         gst_element_sync_state_with_parent(depay);
         gst_element_sync_state_with_parent(opusdec);
     } else {
+        // Check webrtcbin output
+        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
+
         GstElement *decodebin = gst_element_factory_make("decodebin3", NULL);
 
         g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_decodebin_pad_added), sc);
         gst_bin_add(GST_BIN(sc->pipeline), decodebin);
 
         // Print stats repeatedly
-//        sc->timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), sc);
+        //        sc->timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), sc);
 
         GstPad *sink_pad = gst_element_get_static_pad(decodebin, "sink");
         gst_pad_link(pad, sink_pad);
@@ -726,10 +738,6 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
 
     gst_bin_add_many(GST_BIN(sc->pipeline), webrtcbin, NULL);
-
-    //    GstPad *pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(sc->pipeline), "depay"), "src");
-    //    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
-    //    gst_object_unref(pad);
 
     g_autoptr(GstBus) bus = gst_element_get_bus(sc->pipeline);
     // We set this up to inject the EGL context
