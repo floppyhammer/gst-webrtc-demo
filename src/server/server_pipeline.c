@@ -593,7 +593,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         // "video/x-h264,profile=baseline ! "
 
         // zerolatency is not available for some hw encoders
-        "encodebin2 profile=\"video/x-h264|element-properties,tune=4,bitrate=4000\" ! "
+        "encodebin2 profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=4000\" ! "
 #else
         "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=4000000\" ! "
 #endif
