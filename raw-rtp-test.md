@@ -11,10 +11,10 @@ gst-launch-1.0 -v \
   queue ! \
   videoconvert ! \
   autovideosink t1. ! \
-  encodebin2 profile='video/x-h264|element-properties,bitrate=4000' ! \
+  encodebin2 profile='video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=4000' ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
-  udpsink host=10.11.9.192 port=5600
+  udpsink host=10.11.9.31 port=5600
 ```
 
 Receiver
@@ -42,11 +42,11 @@ gst-launch-1.0 -v \
   queue ! \
   videoconvert ! \
   autovideosink t1. ! \
-  x264enc tune=zerolatency bitrate=4000 ! \
+  encodebin2 profile='video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=4000' ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
   queue ! \
-  rtpsink uri=rtp://10.11.9.192:5600
+  rtpsink uri=rtp://10.11.9.31:5600
 ```
 
 Receiver
@@ -75,7 +75,7 @@ gst-launch-1.0 -v \
   videoconvert ! \
   autovideosink t1. ! \
   queue ! \
-  encodebin2 profile='video/x-h264|element-properties,bitrate=4000' ! \
+  encodebin2 profile='video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=4000' ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
   rtpulpfecenc percentage=5 pt=122 ! \
@@ -159,7 +159,7 @@ ffplay -fflags nobuffer -flags low_delay -probesize 32 -analyzeduration 1 -stric
 Sender
 
 ```bash
-ffmpeg -re -i test.mp4 -preset ultrafast -tune zerolatency -codec libx264 -f rtp -sdp_file test_video.sdp "rtp://10.11.9.192:5600"
+ffmpeg -re -i test.mp4 -preset ultrafast -tune zerolatency -codec libx264 -f rtp -sdp_file test_video.sdp "rtp://10.11.9.31:5600"
 ```
 
 Receiver
