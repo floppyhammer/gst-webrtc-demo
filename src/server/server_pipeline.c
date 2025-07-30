@@ -21,7 +21,7 @@
 // FIXME: enabling audio causes reconnection failure
 #define ENABLE_AUDIO
 
-#define USE_H265
+#define USE_H264
 
 static SignalingServer* signaling_server = NULL;
 
@@ -93,10 +93,10 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
 
         GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
 
-#ifdef USE_H265
+#ifdef USE_H264
         GstCaps* caps = gst_caps_from_string(
             "application/x-rtp,"
-            "payload=96,encoding-name=H265,clock-rate=90000,media=video,packetization-mode=(string)1,"
+            "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,"
             "profile-level-id=(string)42e01f");
 #else
         GstCaps* caps =
@@ -587,18 +587,18 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         // Local display sink for latency comparison
         "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! "
 #endif
-#ifdef USE_H265
+#ifdef USE_H264
         // Software encoder
         // "x264enc tune=zerolatency bitrate=8000 ! "
         // "video/x-h264,profile=baseline ! "
 
         // zerolatency is not available for some hw encoders
-        "encodebin2 profile=\"video/x-h265|element-properties,bitrate=4000\" ! "
+        "encodebin2 profile=\"video/x-h264|element-properties,tune=4,bitrate=4000\" ! "
 #else
         "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=4000000\" ! "
 #endif
-#ifdef USE_H265
-        "rtph265pay config-interval=-1 aggregate-mode=zero-latency ! "
+#ifdef USE_H264
+        "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else
         "rtpvp8pay ! "
