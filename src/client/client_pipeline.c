@@ -11,6 +11,8 @@
 #include <libsoup/soup-session.h>
 #include <stdint.h>
 
+#include "../common/probe.h"
+#include "../utils/logger.h"
 #include "stdio.h"
 
 #define DEFAULT_WEBSOCKET_URI "ws://127.0.0.1:52356/ws"
@@ -284,12 +286,18 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, GstElemen
 
     g_print("Hit on_webrtcbin_pad_added\n");
 
+    gboolean is_audio = FALSE;
     {
         GstCaps *caps = gst_pad_get_current_caps(pad);
         gchar *str = gst_caps_serialize(caps, 0);
         g_print("webrtcbin pad caps: %s\n", str);
+        is_audio = g_strstr_len(str, -1, "audio") != NULL;
         g_free(str);
         gst_caps_unref(caps);
+    }
+
+    if (!is_audio) {
+        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
     }
 
     GstElement *decodebin = gst_element_factory_make("decodebin3", NULL);

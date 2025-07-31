@@ -49,7 +49,9 @@ elseif (WIN32)
     set(GIO_LIBRARIES "${GST_LIB_ROOT}\\gio-2.0.lib")
 endif ()
 
-add_library(webrtc_demo_common server/server_pipeline.c server/signaling_server.c client/client_pipeline.c)
+add_library(webrtc_demo_common server/server_pipeline.c server/signaling_server.c client/client_pipeline.c
+        common/probe.c
+        common/probe.h)
 
 target_link_libraries(
         webrtc_demo_common

@@ -11,10 +11,10 @@ gst-launch-1.0 -v \
   queue ! \
   videoconvert ! \
   autovideosink t1. ! \
-  encodebin2 profile='video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=4000' ! \
+  encodebin2 profile='video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=8000' ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
-  udpsink host=10.11.9.31 port=5600
+  udpsink host=10.11.8.156 port=5600
 ```
 
 Receiver

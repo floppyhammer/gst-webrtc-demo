@@ -3,6 +3,7 @@
 #include <gst/gst.h>
 #include <gst/gststructure.h>
 
+#include "../common/probe.h"
 #include "../utils/logger.h"
 #include "signaling_server.h"
 
@@ -19,7 +20,7 @@
 #define VIDEO_TEE_NAME "video_tee"
 
 // FIXME: enabling audio causes reconnection failure
-#define ENABLE_AUDIO
+// #define ENABLE_AUDIO
 
 #define USE_H264
 
@@ -83,6 +84,39 @@ static GstElement* get_webrtcbin_for_client(GstBin* pipeline, ClientId client_id
     return webrtcbin;
 }
 
+static void on_prepare_data_channel(GstElement *webrtcbin,
+                                    GstWebRTCDataChannel *channel,
+                                    gboolean is_local,
+                                    gpointer user_data) {
+    ALOGE("%s", __FUNCTION__);
+
+    // Adjust receive buffer size (IMPORTANT)
+    GstWebRTCSCTPTransport *sctp_transport = NULL;
+    g_object_get(webrtcbin, "sctp-transport", &sctp_transport, NULL);
+    if (!sctp_transport) {
+        g_error("Failed to get sctp_transport!");
+    }
+
+    GstWebRTCDTLSTransport *dtls_transport = NULL;
+    g_object_get(sctp_transport, "transport", &dtls_transport, NULL);
+    if (!dtls_transport) {
+        g_error("Failed to get dtls_transport!");
+    }
+
+    GstWebRTCICETransport *ice_transport = NULL;
+    g_object_get(dtls_transport, "transport", &ice_transport, NULL);
+
+    if (ice_transport) {
+        g_object_set(ice_transport, "send-buffer-size", 16 * 1024 * 1024, NULL);
+    } else {
+        g_error("Failed to get ice_transport!");
+    }
+
+    g_object_unref(ice_transport);
+    g_object_unref(dtls_transport);
+    g_object_unref(sctp_transport);
+}
+
 static void link_webrtc_to_tee(GstElement* webrtcbin) {
     GstElement* pipeline = GST_ELEMENT(gst_element_get_parent(webrtcbin));
     g_assert(pipeline != NULL);
@@ -140,6 +174,9 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
         GArray* transceivers;
         g_signal_emit_by_name(webrtcbin, "get-transceivers", &transceivers);
         g_assert(transceivers != NULL);
+
+        g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
+
 
         for (int idx = 0; idx < transceivers->len; idx++) {
             GstWebRTCRTPTransceiver* trans = g_array_index(transceivers, GstWebRTCRTPTransceiver*, idx);
@@ -506,22 +543,6 @@ void gstAndroidLog(GstDebugCategory* category,
 
 #define U_TYPED_CALLOC(TYPE) ((TYPE*)calloc(1, sizeof(TYPE)))
 
-static GstPadProbeReturn buffer_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
-    if (info->type & GST_PAD_PROBE_TYPE_BUFFER) {
-        GstBuffer* buf = GST_PAD_PROBE_INFO_BUFFER(info);
-        GstClockTime pts = GST_BUFFER_PTS(buf);
-
-        static GstClockTime previous_pts = 0;
-        static int64_t previous_time = 0;
-        if (previous_pts != 0) {
-            int64_t pts_diff = (pts - previous_pts) / 1e6;
-            ALOGD("Received frame PTS: %" GST_TIME_FORMAT ", PTS diff: %ld", GST_TIME_ARGS(pts), pts_diff);
-        }
-        previous_pts = pts;
-    }
-    return GST_PAD_PROBE_OK;
-}
-
 static void on_handoff(GstElement* identity, GstBuffer* buffer, gpointer user_data) {
     GstClockTime pts = GST_BUFFER_PTS(buffer);
     GstClockTime dts = GST_BUFFER_DTS(buffer);
@@ -580,8 +601,7 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         "application/x-rtp,encoding-name=OPUS,media=audio,payload=127,ssrc=(uint)3484078953 ! "
         "queue ! "
         "tee name=%s allow-not-linked=true "
-        "dec. ! queue ! videoconvert ! "
-        "identity signal-handoffs=true name=identity ! "
+        "dec. ! queue name=q1 ! videoconvert ! "
         "timeoverlay ! "
 #ifndef ANDROID
         // Local display sink for latency comparison
@@ -589,16 +609,15 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 #endif
 #ifdef USE_H264
         // Software encoder
-        // "x264enc tune=zerolatency bitrate=8000 ! "
+        // "x264enc tune=zerolatency bitrate=4000 ! "
         // "video/x-h264,profile=baseline ! "
 
-        // zerolatency is not available for some hw encoders
-        "encodebin2 profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=4000\" ! "
+        "encodebin2 profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=8000\" ! "
 #else
         "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=4000000\" ! "
 #endif
 #ifdef USE_H264
-        "rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
+        "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else
         "rtpvp8pay ! "
@@ -617,9 +636,9 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     g_assert_no_error(error);
     g_free(pipeline_str);
 
-    // GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "parser"), "src");
-    // gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
-    // gst_object_unref(pad);
+    GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "pay"), "src");
+    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
+    gst_object_unref(pad);
 
     g_signal_connect(gst_bin_get_by_name(GST_BIN(pipeline), "identity"), "handoff", G_CALLBACK(on_handoff), NULL);
 

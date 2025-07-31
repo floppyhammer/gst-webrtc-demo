@@ -345,11 +345,13 @@ static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpo
 
         static GstClockTime previous_pts = 0;
         static int64_t previous_time = 0;
+        static uint32_t seq_num = 0;
+
         if (previous_pts != 0) {
             int64_t pts_diff = (pts - previous_pts) / 1e6;
 
             if (pts_diff > 50) {
-                ALOGE("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT ", PTS diff: %ld",
+                ALOGE("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT ", PTS diff: %ld late packet",
                       GST_TIME_ARGS(pts),
                       pts_diff);
             } else {
@@ -359,6 +361,22 @@ static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpo
             }
         }
         previous_pts = pts;
+
+        GstMapInfo map;
+        if (gst_buffer_map(buf, &map, GST_MAP_READ)) {
+            if (map.size >= 12) {
+                guint8 *data = map.data;
+                uint32_t new_seq_num = (data[2] << 8) | data[3];
+                ALOGD("Webrtcbin video src pad: buffer sequence number: %u\n", new_seq_num);
+
+                if (new_seq_num - seq_num > 1) {
+                    ALOGE("Packet lost!");
+                }
+
+                seq_num = new_seq_num;
+            }
+            gst_buffer_unmap(buf, &map);
+        }
     }
     return GST_PAD_PROBE_OK;
 }
@@ -490,6 +508,8 @@ static void on_prepare_data_channel(GstElement *webrtcbin,
                                     GstWebRTCDataChannel *channel,
                                     gboolean is_local,
                                     gpointer user_data) {
+    ALOGE("%s", __FUNCTION__);
+
     // Adjust receive buffer size (IMPORTANT)
     GstWebRTCSCTPTransport *sctp_transport = NULL;
     g_object_get(webrtcbin, "sctp-transport", &sctp_transport, NULL);
@@ -732,7 +752,7 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
     GstElement *webrtcbin = gst_element_factory_make("webrtcbin", "webrtc");
     // Matching this to the offerer's bundle policy is necessary for negotiation
     g_object_set(webrtcbin, "bundle-policy", GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE, NULL);
-    g_object_set(webrtcbin, "latency", 0, NULL);
+    g_object_set(webrtcbin, "latency", 5, NULL);
     g_signal_connect(webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
     g_signal_connect(webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), sc);
     g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);

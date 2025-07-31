@@ -30,7 +30,7 @@
 #include <libsoup/soup-message.h>
 #include <libsoup/soup-session.h>
 
-#define DEFAULT_WEBSOCKET_URI "ws://10.11.24.190:52356/ws"
+#define DEFAULT_WEBSOCKET_URI "ws://10.11.9.210:52356/ws"
 // #define DEFAULT_WEBSOCKET_URI "ws://127.0.0.1:52356/ws"
 
 /*!
@@ -91,7 +91,6 @@ static void em_connection_set_property(GObject *object, guint property_id, const
             self->websocket_uri = g_value_dup_string(value);
             ALOGI("Websocket URI assigned: %s", self->websocket_uri);
             break;
-
         default:
             G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
             break;
