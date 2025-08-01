@@ -631,7 +631,7 @@ static void on_ice_connection_state_change(GstElement *webrtcbin, GParamSpec *ps
 void em_connection_set_pipeline(EmConnection *emconn, GstPipeline *pipeline) {
     g_assert_nonnull(pipeline);
     if (emconn->pipeline) {
-        // stop old pipeline if applicable
+        // Stop old pipeline if applicable
         gst_element_set_state(GST_ELEMENT(emconn->pipeline), GST_STATE_NULL);
     }
     gst_clear_object(&emconn->pipeline);

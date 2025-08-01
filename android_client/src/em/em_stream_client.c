@@ -181,9 +181,9 @@ struct _EmStreamClient {
  * Callbacks
  */
 
-static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc);
+static void on_need_pipeline_cb(EmConnection *em_conn, EmStreamClient *sc);
 
-static void on_drop_pipeline_cb(EmConnection *emconn, EmStreamClient *sc);
+static void on_drop_pipeline_cb(EmConnection *em_conn, EmStreamClient *sc);
 
 static void *em_stream_client_thread_func(void *ptr);
 
@@ -702,10 +702,10 @@ static gboolean check_pipeline_dot_data(EmStreamClient *sc) {
     return G_SOURCE_CONTINUE;
 }
 
-static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
+static void on_need_pipeline_cb(EmConnection *em_conn, EmStreamClient *sc) {
     g_info("%s", __FUNCTION__);
     g_assert_nonnull(sc);
-    g_assert_nonnull(emconn);
+    g_assert_nonnull(em_conn);
 
     //    GList *decoders = gst_element_factory_list_get_elements(GST_ELEMENT_FACTORY_TYPE_DECODABLE,
     //                                                            GST_RANK_MARGINAL);
@@ -769,12 +769,12 @@ static void on_need_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
 
     // This actually hands over the pipeline. Once our own handler returns,
     // the pipeline will be started by the connection.
-    g_signal_emit_by_name(emconn, "set-pipeline", GST_PIPELINE(sc->pipeline), NULL);
+    g_signal_emit_by_name(em_conn, "set-pipeline", GST_PIPELINE(sc->pipeline), NULL);
 
     sc->timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), sc);
 }
 
-static void on_drop_pipeline_cb(EmConnection *emconn, EmStreamClient *sc) {
+static void on_drop_pipeline_cb(EmConnection *em_conn, EmStreamClient *sc) {
     if (sc->pipeline) {
         gst_element_set_state(sc->pipeline, GST_STATE_NULL);
     }
