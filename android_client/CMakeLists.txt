@@ -70,12 +70,7 @@ if(ANDROID)
 	option(EMC_OLDER_GST "Some older versions of gstreamer use libsoup2.4 instead of libsoup3.0" OFF)
 	set(EMC_OLDER_GST OFF)
 
-	set(USE_GST_SHARED OFF)
-	if(USE_GST_SHARED)
-		include(libraries_shared.cmake)
-	else()
-		include(libraries_static.cmake)
-	endif()
+	include(libraries_static.cmake)
 
 	set(GST_INCLUDE_DIRS ${GST_ARCH_DIR}/include/gstreamer-1.0/
 			     ${GST_ARCH_DIR}/lib/gstreamer-1.0/include/
