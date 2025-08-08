@@ -14,7 +14,7 @@ gst-launch-1.0 -v \
   encodebin2 profile='video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=8000' ! \
   rtph264pay config-interval=-1 aggregate-mode=zero-latency ! \
   application/x-rtp,encoding-name=H264,clock-rate=90000,media=video,payload=96 ! \
-  udpsink host=10.11.8.156 port=5600
+  udpsink host=127.0.0.1 port=5600
 ```
 
 Receiver
@@ -22,7 +22,7 @@ Receiver
 ```bash
 gst-launch-1.0 -v \
   udpsrc port=5600 buffer-size=10000000 caps='application/x-rtp,media=(string)video,clock-rate=(int)90000,encoding-name=(string)H264' ! \
-  rtpjitterbuffer ! \
+  rtpjitterbuffer latency=0 ! \
   rtph264depay ! \
   avdec_h264 ! \
   videoconvert ! \
