@@ -20,7 +20,7 @@
 #define VIDEO_TEE_NAME "video_tee"
 
 // FIXME: enabling audio causes reconnection failure
-// #define ENABLE_AUDIO
+#define ENABLE_AUDIO
 
 #define USE_H264
 
@@ -84,26 +84,26 @@ static GstElement* get_webrtcbin_for_client(GstBin* pipeline, ClientId client_id
     return webrtcbin;
 }
 
-static void on_prepare_data_channel(GstElement *webrtcbin,
-                                    GstWebRTCDataChannel *channel,
+static void on_prepare_data_channel(GstElement* webrtcbin,
+                                    GstWebRTCDataChannel* channel,
                                     gboolean is_local,
                                     gpointer user_data) {
     ALOGE("%s", __FUNCTION__);
 
     // Adjust receive buffer size (IMPORTANT)
-    GstWebRTCSCTPTransport *sctp_transport = NULL;
+    GstWebRTCSCTPTransport* sctp_transport = NULL;
     g_object_get(webrtcbin, "sctp-transport", &sctp_transport, NULL);
     if (!sctp_transport) {
         g_error("Failed to get sctp_transport!");
     }
 
-    GstWebRTCDTLSTransport *dtls_transport = NULL;
+    GstWebRTCDTLSTransport* dtls_transport = NULL;
     g_object_get(sctp_transport, "transport", &dtls_transport, NULL);
     if (!dtls_transport) {
         g_error("Failed to get dtls_transport!");
     }
 
-    GstWebRTCICETransport *ice_transport = NULL;
+    GstWebRTCICETransport* ice_transport = NULL;
     g_object_get(dtls_transport, "transport", &ice_transport, NULL);
 
     if (ice_transport) {
@@ -130,8 +130,7 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
 #ifdef USE_H264
         GstCaps* caps = gst_caps_from_string(
             "application/x-rtp,"
-            "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1,"
-            "profile-level-id=(string)42e01f");
+            "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1");
 #else
         GstCaps* caps =
             gst_caps_from_string("application/x-rtp,encoding-name=VP8,clock-rate=90000,media=video,payload=96");
@@ -176,7 +175,6 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
         g_assert(transceivers != NULL);
 
         g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
-
 
         for (int idx = 0; idx < transceivers->len; idx++) {
             GstWebRTCRTPTransceiver* trans = g_array_index(transceivers, GstWebRTCRTPTransceiver*, idx);
