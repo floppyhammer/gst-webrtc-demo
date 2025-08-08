@@ -30,15 +30,10 @@ struct MyGstData {
     GstElement* webrtcbin;
 
     GObject* data_channel;
-    guint timeout_src_id_msg;
 
+    guint timeout_src_id_msg;
     guint timeout_src_id_dot_data;
 };
-
-static gboolean sigint_handler(gpointer user_data) {
-    g_main_loop_quit(user_data);
-    return G_SOURCE_REMOVE;
-}
 
 static gboolean gst_bus_cb(GstBus* bus, GstMessage* message, gpointer user_data) {
     struct MyGstData* mgd = user_data;
@@ -443,11 +438,12 @@ void* loop_thread(void* data) {
  */
 
 void server_pipeline_play(struct MyGstData* mgd) {
-    ALOGD("Starting pipeline");
+    ALOGI("Starting pipeline");
+
     main_loop = g_main_loop_new(NULL, FALSE);
 
-    // Play the pipeline (webrtcbin is not linked yet)
-    GstStateChangeReturn ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
+    // Play the pipeline (but webrtcbin is not linked yet)
+    const GstStateChangeReturn ret = gst_element_set_state(mgd->pipeline, GST_STATE_PLAYING);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
     g_signal_connect(signaling_server, "ws-client-connected", G_CALLBACK(webrtc_client_connected_cb), mgd);
@@ -456,14 +452,14 @@ void server_pipeline_play(struct MyGstData* mgd) {
 }
 
 void server_pipeline_stop(struct MyGstData* mgd) {
-    ALOGD("Stopping pipeline");
+    ALOGI("Stopping pipeline");
 
     // Settle the pipeline.
-    ALOGD("Sending EOS");
+    ALOGD("Sending EOS event");
     gst_element_send_event(mgd->pipeline, gst_event_new_eos());
 
     // Wait for an EOS message on the pipeline bus.
-    ALOGD("Waiting for EOS");
+    ALOGD("Waiting for EOS message");
     GstMessage* msg = gst_bus_timed_pop_filtered(GST_ELEMENT_BUS(mgd->pipeline),
                                                  GST_CLOCK_TIME_NONE,
                                                  GST_MESSAGE_EOS | GST_MESSAGE_ERROR);
@@ -472,14 +468,14 @@ void server_pipeline_stop(struct MyGstData* mgd) {
     (void)msg;
 
     // Completely stop the pipeline.
-    ALOGD("Setting pipeline state to NULL");
+    ALOGI("Setting pipeline state to NULL");
     gst_element_set_state(mgd->pipeline, GST_STATE_NULL);
 
     g_clear_handle_id(&mgd->timeout_src_id_dot_data, g_source_remove);
 }
 
 void gstAndroidLog(GstDebugCategory* category,
-                   GstDebugLevel level,
+                   const GstDebugLevel level,
                    const gchar* file,
                    const gchar* function,
                    gint line,
@@ -500,10 +496,10 @@ void gstAndroidLog(GstDebugCategory* category,
 static void on_handoff(GstElement* identity, GstBuffer* buffer, gpointer user_data) {
     GstClockTime pts = GST_BUFFER_PTS(buffer);
     GstClockTime dts = GST_BUFFER_DTS(buffer);
-    // g_print("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
+    // ALOGD("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
 }
 
-void server_pipeline_create(struct MyGstData** out_gst_data) {
+void server_pipeline_create(struct MyGstData** out_mgd) {
     GError* error = NULL;
 
     signaling_server = signaling_server_new();
@@ -541,45 +537,48 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
 
     // Setup pipeline
     // is-live=true is to fix first frame delay
-    gchar* pipeline_str = g_strdup_printf(
-        // "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
-        // "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
-        // "audiotestsrc is-live=true wave=red-noise ! "
-        "filesrc location=test.mp4 ! "
-        "decodebin3 name=dec "
-        "dec. ! queue ! audioconvert ! "
-        "audioresample ! "
-        "queue ! "
-        "opusenc perfect-timestamp=true ! "
-        "rtpopuspay ! "
-        "application/x-rtp,encoding-name=OPUS,media=audio,payload=127,ssrc=(uint)3484078953 ! "
-        "queue ! "
-        "tee name=%s allow-not-linked=true "
-        "dec. ! queue name=q1 ! videoconvert ! "
-        "timeoverlay ! "
+    gchar*
+        pipeline_str =
+            g_strdup_printf(
+                // "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
+                // "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
+                // "audiotestsrc is-live=true wave=red-noise ! "
+                "filesrc location=test.mp4 ! "
+                "decodebin3 name=dec "
+                "dec. ! queue ! audioconvert ! "
+                "audioresample ! "
+                "queue ! "
+                "opusenc perfect-timestamp=true ! "
+                "rtpopuspay ! "
+                "application/x-rtp,encoding-name=OPUS,media=audio,payload=127,ssrc=(uint)3484078953 ! "
+                "queue ! "
+                "tee name=%s allow-not-linked=true "
+                "dec. ! queue name=q1 ! videoconvert ! "
+                "timeoverlay ! "
 #ifndef ANDROID
-        // Local display sink for latency comparison
-        "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! "
+                // Local display sink for latency comparison
+                "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! "
 #endif
 #ifdef USE_H264
-        // Software encoder
-        // "x264enc tune=zerolatency bitrate=4000 ! "
-        // "video/x-h264,profile=baseline ! "
+                // Software encoder
+                // "x264enc tune=zerolatency bitrate=4000 ! "
+                // "video/x-h264,profile=baseline ! "
 
-        "encodebin2 profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120\" ! "
+                "encodebin2 "
+                "profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120\" ! " // (Forced bitrate) bitrate=8000
 #else
-        "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1\" ! "
+                "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1\" ! " // (Forced bitrate) target-bitrate=4000000
 #endif
 #ifdef USE_H264
-        "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "
-        "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
+                "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "
+                "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
 #else
-        "rtpvp8pay ! "
-        "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
+                "rtpvp8pay ! "
+                "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
 #endif
-        "tee name=%s allow-not-linked=true",
-        AUDIO_TEE_NAME,
-        VIDEO_TEE_NAME);
+                "tee name=%s allow-not-linked=true",
+                AUDIO_TEE_NAME,
+                VIDEO_TEE_NAME);
 
     // No webrtcbin yet until later!
 
@@ -606,5 +605,5 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
     g_signal_connect(signaling_server, "candidate", G_CALLBACK(webrtc_candidate_cb), mgd);
 
     mgd->pipeline = pipeline;
-    *out_gst_data = mgd;
+    *out_mgd = mgd;
 }

@@ -1,9 +1,11 @@
+#pragma once
+
 #ifdef __cplusplus
 extern "C" {
-    #endif
+#endif
 
-    int create_client(int argc, char *argv[]);
+int create_client(int argc, char *argv[]);
 
-    #ifdef __cplusplus
+#ifdef __cplusplus
 }
 #endif

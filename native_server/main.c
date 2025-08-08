@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     ALOGD("Starting main loop");
     g_main_loop_run(loop);
 
-    ALOGD("Exited main loop, cleaning up\n");
+    ALOGD("Exited main loop, cleaning up");
     g_main_loop_unref(loop);
 
     // Cleanup

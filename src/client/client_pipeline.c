@@ -49,7 +49,7 @@ static void data_channel_close_cb(GstWebRTCDataChannel *data_channel, gpointer t
 }
 
 static void data_channel_message_data_cb(GstWebRTCDataChannel *data_channel, GBytes *data, void *user_data) {
-    uint32_t data_size = g_bytes_get_size(data);
+    const uint32_t data_size = g_bytes_get_size(data);
     g_print("Received data channel message data, size: %u\n", data_size);
 }
 

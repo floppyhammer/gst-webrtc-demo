@@ -10,7 +10,7 @@ typedef gpointer ClientId;
 
 SignalingServer *signaling_server_new();
 
-void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *msg);
+void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp);
 
 void signaling_server_send_candidate(SignalingServer *server,
                                      ClientId client_id,

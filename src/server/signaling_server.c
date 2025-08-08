@@ -1,21 +1,7 @@
-// Copyright 2019-2023, Collabora, Ltd.
-// Copyright 2023, Pluto VR, Inc.
-// SPDX-License-Identifier: BSL-1.0
-/*!
- * @file
- * @brief  WebSocket signaling server for Electric Maple
- * @author Moshi Turner <moses@collabora.com>
- * @author Jakub Adam <jakub.adam@collabora.com
- * @author Nicolas Dufresne <nicolas.dufresne@collabora.com>
- * @author Olivier Crête <olivier.crete@collabora.com>
- * @ingroup aux_util
- */
-
 #include "signaling_server.h"
 
 #include <glib/gstdio.h>
 #include <json-glib/json-glib.h>
-#include <libsoup/soup-message.h>
 #include <libsoup/soup-server.h>
 #include <libsoup/soup-version.h>
 
@@ -52,17 +38,19 @@ SignalingServer *signaling_server_new() {
 }
 
 #if !SOUP_CHECK_VERSION(3, 0, 0)
+
 static void http_cb(SoupServer *server,
                     SoupMessage *msg,
                     const char *path,
                     GHashTable *query,
                     SoupClientContext *client,
                     gpointer user_data) {
-    // We're not serving any HTTP traffic - if somebody (erroneously) submits an HTTP request, tell them to get
-    // lost.
+    // We're not serving any HTTP traffic - if somebody (erroneously) submits an HTTP request,
+    // tell them to get lost.
     ALOGE("Got an erroneous HTTP request from %s", soup_client_context_get_host(client));
     soup_message_set_status(msg, SOUP_STATUS_NOT_FOUND);
 }
+
 #else
 
 static void http_cb(SoupServer *server,     //
@@ -70,8 +58,8 @@ static void http_cb(SoupServer *server,     //
                     const char *path,       //
                     GHashTable *query,      //
                     gpointer user_data) {
-    // We're not serving any HTTP traffic - if somebody (erroneously) submits an HTTP request, tell them to get
-    // lost.
+    // We're not serving any HTTP traffic - if somebody (erroneously) submits an HTTP request,
+    // tell them to get lost.
     ALOGE("Got an erroneous HTTP request from %s", soup_server_message_get_remote_host(msg));
     soup_server_message_set_status(msg, SOUP_STATUS_NOT_FOUND, NULL);
 }
@@ -223,8 +211,8 @@ static void signaling_server_send_to_websocket_client(SignalingServer *server, C
     }
 }
 
-void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id, const gchar *sdp) {
-    ALOGD("Send offer: %s", sdp);
+void signaling_server_send_sdp_offer(SignalingServer *server, const ClientId client_id, const gchar *sdp) {
+    ALOGD("Send SDP offer: %s", sdp);
 
     JsonBuilder *builder = json_builder_new();
     json_builder_begin_object(builder);
@@ -244,10 +232,10 @@ void signaling_server_send_sdp_offer(SignalingServer *server, ClientId client_id
 }
 
 void signaling_server_send_candidate(SignalingServer *server,
-                                     ClientId client_id,
-                                     guint m_line_index,
+                                     const ClientId client_id,
+                                     const guint m_line_index,
                                      const gchar *candidate) {
-    // ALOGD("Send candidate: %u %s", m_line_index, candidate);
+    ALOGD("Send ICE candidate: %u %s", m_line_index, candidate);
 
     JsonBuilder *builder = json_builder_new();
     json_builder_begin_object(builder);
@@ -273,7 +261,6 @@ void signaling_server_send_candidate(SignalingServer *server,
 
 static void signaling_server_dispose(GObject *object) {
     SignalingServer *self = GWD_SIGNALING_SERVER(object);
-    GDir *dir;
 
     soup_server_disconnect(self->soup_server);
     g_clear_object(&self->soup_server);
