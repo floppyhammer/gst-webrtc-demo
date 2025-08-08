@@ -12,6 +12,7 @@
 #include <stdint.h>
 
 #include "../common/probe.h"
+#include "../common/webrtc_stats.h"
 #include "../utils/logger.h"
 #include "stdio.h"
 
@@ -24,7 +25,7 @@ struct RecvState {
     GstElement *webrtcbin;
     GstWebRTCDataChannel *data_channel;
     // todo: release
-    guint timeout_src_id_print_stats;
+    guint timeout_src_id_print_webrtc_stats;
     guint timeout_src_id_dot_data;
 };
 
@@ -476,12 +477,13 @@ GstElement *find_element_by_name(GstBin *bin, const gchar *element_name) {
 
 static void on_webrtcbin_stats(GstPromise *promise, GstElement *user_data) {
     const GstStructure *reply = gst_promise_get_reply(promise);
-    gchar *str = gst_structure_to_string(reply);
-    g_print("webrtcbin stats: %s\n", str);
-    g_free(str);
+
+    GString *json = webrtc_stats_get_json(reply);
+    ALOGD("webrtcbin stats: %s", json->str);
+    g_string_free(json, TRUE);
 }
 
-static gboolean print_stats() {
+static gboolean print_webrtc_stats() {
     if (!recv_state.webrtcbin) {
         return G_SOURCE_CONTINUE;
     }
@@ -489,34 +491,36 @@ static gboolean print_stats() {
     GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_webrtcbin_stats, NULL, NULL);
     g_signal_emit_by_name(recv_state.webrtcbin, "get-stats", NULL, promise);
 
-    // FEC stats
-    for (int i = 0; i < 2; i++) {
-        gchar *name;
-        if (i == 0) {
-            name = "rtpulpfecdec0";
-        } else {
-            name = "rtpulpfecdec1";
-        }
+    // Show FEC stats
+    if (0) {
+        for (int i = 0; i < 2; i++) {
+            gchar *name;
+            if (i == 0) {
+                name = "rtpulpfecdec0";
+            } else {
+                name = "rtpulpfecdec1";
+            }
 
-        GstElement *rtpulpfecdec = find_element_by_name(GST_BIN(recv_state.webrtcbin), name);
+            GstElement *rtpulpfecdec = find_element_by_name(GST_BIN(recv_state.webrtcbin), name);
 
-        if (rtpulpfecdec) {
-            GValue pt = G_VALUE_INIT;
-            GValue recovered = G_VALUE_INIT;
-            GValue unrecovered = G_VALUE_INIT;
+            if (rtpulpfecdec) {
+                GValue pt = G_VALUE_INIT;
+                GValue recovered = G_VALUE_INIT;
+                GValue unrecovered = G_VALUE_INIT;
 
-            g_object_get_property(G_OBJECT(rtpulpfecdec), "pt", &pt);
-            g_object_get_property(G_OBJECT(rtpulpfecdec), "recovered", &recovered);
-            g_object_get_property(G_OBJECT(rtpulpfecdec), "unrecovered", &unrecovered);
+                g_object_get_property(G_OBJECT(rtpulpfecdec), "pt", &pt);
+                g_object_get_property(G_OBJECT(rtpulpfecdec), "recovered", &recovered);
+                g_object_get_property(G_OBJECT(rtpulpfecdec), "unrecovered", &unrecovered);
 
-            g_print("FEC stats: pt %u, recovered %u, unrecovered %u\n",
-                    g_value_get_uint(&pt),
-                    g_value_get_uint(&recovered),
-                    g_value_get_uint(&unrecovered));
+                g_print("FEC stats: pt %u, recovered %u, unrecovered %u\n",
+                        g_value_get_uint(&pt),
+                        g_value_get_uint(&recovered),
+                        g_value_get_uint(&unrecovered));
 
-            g_value_unset(&pt);
-            g_value_unset(&recovered);
-            g_value_unset(&unrecovered);
+                g_value_unset(&pt);
+                g_value_unset(&recovered);
+                g_value_unset(&unrecovered);
+            }
         }
     }
 
@@ -574,7 +578,10 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         g_assert(gst_element_set_state(recv_state.pipeline, GST_STATE_PLAYING) != GST_STATE_CHANGE_FAILURE);
 
         // Print stats repeatedly
-        // recv_state.timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), NULL);
+        recv_state.timeout_src_id_print_webrtc_stats =
+            g_timeout_add_seconds(3, G_SOURCE_FUNC(print_webrtc_stats), NULL);
+
+        // Check pipeline dot data repeatedly
         recv_state.timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), NULL);
     }
 }

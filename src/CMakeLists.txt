@@ -22,7 +22,7 @@ elseif (WIN32)
     # To ensure dll linking, add "C:\Program Files\gstreamer\1.0\msvc_x86_64\bin" to your PATH
     set(GST_ROOT "C:\\Program Files\\gstreamer\\1.0\\msvc_x86_64")
     # For older versions of gstreamer
-#    set(GST_ROOT "C:\\gstreamer\\1.0\\msvc_x86_64")
+    #    set(GST_ROOT "C:\\gstreamer\\1.0\\msvc_x86_64")
 
     set(GST_LIB_ROOT "${GST_ROOT}\\lib")
 
@@ -49,9 +49,14 @@ elseif (WIN32)
     set(GIO_LIBRARIES "${GST_LIB_ROOT}\\gio-2.0.lib")
 endif ()
 
-add_library(webrtc_demo_common server/server_pipeline.c server/signaling_server.c client/client_pipeline.c
+add_library(webrtc_demo_common
+        server/server_pipeline.c
+        server/signaling_server.c
+        client/client_pipeline.c
         common/probe.c
-        common/probe.h)
+        common/probe.h
+        common/webrtc_stats.h
+        common/webrtc_stats.c)
 
 target_link_libraries(
         webrtc_demo_common
