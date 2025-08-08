@@ -18,6 +18,7 @@ gst-launch-1.0 -v \
 ```
 
 Receiver
+Using decodebin3 instead of avdec_h264 introduces extra latency. Don't know why.
 
 ```bash
 gst-launch-1.0 -v \
@@ -25,7 +26,6 @@ gst-launch-1.0 -v \
   rtpjitterbuffer latency=0 ! \
   rtph264depay ! \
   avdec_h264 ! \
-  videoconvert ! \
   autovideosink
 ```
 
