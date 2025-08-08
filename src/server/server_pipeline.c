@@ -12,14 +12,13 @@
 #include <gst/webrtc/rtcsessiondescription.h>
 #undef GST_USE_UNSTABLE_API
 
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
 #define AUDIO_TEE_NAME "audio_tee"
 #define VIDEO_TEE_NAME "video_tee"
 
-// FIXME: enabling audio causes reconnection failure
+// Note: currently, enabling audio introduces extra latency
 #define ENABLE_AUDIO
 
 #define USE_H264
@@ -138,7 +137,7 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
 
         GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_0", caps);
 
-        GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
+        const GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
         g_assert(ret == GST_PAD_LINK_OK);
 
         gst_caps_unref(caps);
@@ -159,7 +158,7 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
 
         GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_1", caps);
 
-        GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
+        const GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
         g_assert(ret == GST_PAD_LINK_OK);
 
         gst_caps_unref(caps);
@@ -169,6 +168,7 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
     }
 #endif
 
+    // Config existing transceivers
     {
         GArray* transceivers;
         g_signal_emit_by_name(webrtcbin, "get-transceivers", &transceivers);
@@ -247,11 +247,11 @@ static void data_channel_close_cb(GstWebRTCDataChannel* data_channel, struct MyG
 }
 
 static void data_channel_message_data_cb(GstWebRTCDataChannel* data_channel, GBytes* data, struct MyGstData* mgd) {
-    g_print("Received data channel message data, size: %u\n", (uint32_t)g_bytes_get_size(data));
+    ALOGD("Received data channel message (data), size: %u\n", (uint32_t)g_bytes_get_size(data));
 }
 
 static void data_channel_message_string_cb(GstWebRTCDataChannel* data_channel, gchar* str, struct MyGstData* mgd) {
-    ALOGD("Received data channel message: %s", str);
+    ALOGD("Received data channel message (string): %s", str);
 }
 
 static gboolean check_pipeline_dot_data(struct MyGstData* mgd) {
@@ -265,13 +265,12 @@ static gboolean check_pipeline_dot_data(struct MyGstData* mgd) {
     return G_SOURCE_CONTINUE;
 }
 
-static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_id, struct MyGstData* mgd) {
-    ALOGD("Client connected, ID: %p", client_id);
-
-    GstStateChangeReturn ret;
+static void webrtc_client_connected_cb(SignalingServer* server, const ClientId client_id, struct MyGstData* mgd) {
+    ALOGI("WebSocket client connected, ID: %p", client_id);
 
     GstBin* pipeline_bin = GST_BIN(mgd->pipeline);
 
+    // Create webrtcbin
     gchar* name = g_strdup_printf("webrtcbin_%p", client_id);
     GstElement* webrtcbin = gst_element_factory_make("webrtcbin", name);
     g_free(name);
@@ -284,7 +283,7 @@ static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_
 
     gst_bin_add(pipeline_bin, webrtcbin);
 
-    ret = gst_element_set_state(webrtcbin, GST_STATE_READY);
+    GstStateChangeReturn ret = gst_element_set_state(webrtcbin, GST_STATE_READY);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
     mgd->webrtcbin = webrtcbin;
@@ -316,10 +315,14 @@ static void webrtc_client_connected_cb(SignalingServer* server, ClientId client_
     ret = gst_element_set_state(webrtcbin, GST_STATE_PLAYING);
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
+    // Debug
     mgd->timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), mgd);
 }
 
-static void webrtc_sdp_answer_cb(SignalingServer* server, ClientId client_id, const gchar* sdp, struct MyGstData* mgd) {
+static void webrtc_sdp_answer_cb(SignalingServer* server,
+                                 const ClientId client_id,
+                                 const gchar* sdp,
+                                 const struct MyGstData* mgd) {
     GstBin* pipeline = GST_BIN(mgd->pipeline);
     GstSDPMessage* sdp_msg = NULL;
     GstWebRTCSessionDescription* desc = NULL;
@@ -353,10 +356,10 @@ out:
 }
 
 static void webrtc_candidate_cb(SignalingServer* server,
-                                ClientId client_id,
-                                guint m_line_index,
+                                const ClientId client_id,
+                                const guint m_line_index,
                                 const gchar* candidate,
-                                struct MyGstData* mgd) {
+                                const struct MyGstData* mgd) {
     GstBin* pipeline = GST_BIN(mgd->pipeline);
 
     if (strlen(candidate)) {
@@ -367,7 +370,7 @@ static void webrtc_candidate_cb(SignalingServer* server,
         }
     }
 
-    g_debug("Remote candidate: %s", candidate);
+    ALOGD("Remote candidate: %s", candidate);
 }
 
 static GstPadProbeReturn remove_webrtcbin_probe_audio(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
@@ -405,7 +408,7 @@ static GstPadProbeReturn remove_webrtcbin_probe_cb_video(GstPad* pad, GstPadProb
 }
 
 static void webrtc_client_disconnected_cb(SignalingServer* server, ClientId client_id, struct MyGstData* mgd) {
-    ALOGD("Client disconnected, ID: %p", client_id);
+    ALOGI("WebSocket client disconnected, ID: %p", client_id);
 
     GstBin* pipeline = GST_BIN(mgd->pipeline);
 
@@ -424,53 +427,6 @@ static void webrtc_client_disconnected_cb(SignalingServer* server, ClientId clie
             gst_clear_object(&video_sinkpad);
         }
     }
-}
-
-struct RestartData {
-    GstElement* src;
-    GstElement* pipeline;
-};
-
-static void free_restart_data(gpointer user_data) {
-    struct RestartData* rd = user_data;
-
-    gst_object_unref(rd->src);
-    g_free(rd);
-}
-
-static gboolean restart_source(gpointer user_data) {
-    struct RestartData* rd = user_data;
-
-    gst_element_set_state(rd->src, GST_STATE_NULL);
-    gst_element_set_locked_state(rd->src, TRUE);
-    GstElement* e = gst_bin_get_by_name(GST_BIN(rd->pipeline), "srtqueue");
-    gst_bin_add(GST_BIN(rd->pipeline), rd->src);
-    if (!gst_element_link(rd->src, e)) g_assert_not_reached();
-    gst_element_set_locked_state(rd->src, FALSE);
-    GstStateChangeReturn ret = gst_element_set_state(rd->src, GST_STATE_PLAYING);
-    g_assert(ret != GST_STATE_CHANGE_FAILURE);
-    gst_object_unref(e);
-
-    g_debug("Restarted source after EOS");
-
-    return G_SOURCE_REMOVE;
-}
-
-static GstPadProbeReturn src_event_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
-    GstElement* pipeline = user_data;
-
-    if (GST_EVENT_TYPE(GST_PAD_PROBE_INFO_EVENT(info)) != GST_EVENT_EOS) return GST_PAD_PROBE_PASS;
-
-    GstElement* src = gst_pad_get_parent_element(pad);
-
-    gst_bin_remove(GST_BIN(pipeline), src);
-
-    struct RestartData* rd = g_new(struct RestartData, 1);
-    rd->src = src;
-    rd->pipeline = pipeline;
-    g_idle_add_full(G_PRIORITY_HIGH_IDLE, restart_source, rd, free_restart_data);
-
-    return GST_PAD_PROBE_DROP;
 }
 
 GMainLoop* main_loop = NULL;
@@ -610,9 +566,9 @@ void server_pipeline_create(struct MyGstData** out_gst_data) {
         // "x264enc tune=zerolatency bitrate=4000 ! "
         // "video/x-h264,profile=baseline ! "
 
-        "encodebin2 profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bitrate=8000\" ! "
+        "encodebin2 profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120\" ! "
 #else
-        "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=4000000\" ! "
+        "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1\" ! "
 #endif
 #ifdef USE_H264
         "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "
