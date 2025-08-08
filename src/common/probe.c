@@ -5,6 +5,8 @@
 #include "../utils/logger.h"
 
 GstPadProbeReturn buffer_probe_cb(GstPad* pad, const GstPadProbeInfo* info, gpointer user_data) {
+    return GST_PAD_PROBE_OK;
+
     if (info->type & GST_PAD_PROBE_TYPE_BUFFER) {
         GstBuffer* buf = GST_PAD_PROBE_INFO_BUFFER(info);
         const GstClockTime pts = GST_BUFFER_PTS(buf);

@@ -565,9 +565,9 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
                 // "video/x-h264,profile=baseline ! "
 
                 "encodebin2 "
-                "profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120\" ! " // (Forced bitrate) bitrate=8000
+                "profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120,bitrate=8000\" ! " // (Forced bitrate) bitrate=8000
 #else
-                "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1\" ! " // (Forced bitrate) target-bitrate=4000000
+                "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=4000000\" ! " // (Forced bitrate) target-bitrate=4000000
 #endif
 #ifdef USE_H264
                 "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "

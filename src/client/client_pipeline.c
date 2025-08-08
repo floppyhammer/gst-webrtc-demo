@@ -558,7 +558,7 @@ static void websocket_connected_cb(GObject *session, GAsyncResult *res, gpointer
         recv_state.webrtcbin = gst_element_factory_make("webrtcbin", NULL);
         // Matching this to the offerer's bundle policy is necessary for negotiation
         g_object_set(recv_state.webrtcbin, "bundle-policy", GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE, NULL);
-        g_object_set(recv_state.webrtcbin, "latency", 5, NULL);
+        g_object_set(recv_state.webrtcbin, "latency", 0, NULL);
 
         gst_bin_add_many(GST_BIN(recv_state.pipeline), recv_state.webrtcbin, NULL);
 
