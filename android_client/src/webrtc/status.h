@@ -13,7 +13,7 @@
 
 /// Status of the ElectricMaple remote rendering connection
 #include <stdbool.h>
-enum em_status {
+enum status {
     /// Not connected, not connecting, and not waiting before retrying connection.
     EM_STATUS_IDLE_NOT_CONNECTED = 0,
     /// Connecting to the signaling server websocket
@@ -37,7 +37,7 @@ enum em_status {
     case E:             \
         return #E
 
-static inline const char* em_status_to_string(enum em_status status) {
+static inline const char* em_status_to_string(enum status status) {
     switch (status) {
         EM_MAKE_CASE(EM_STATUS_IDLE_NOT_CONNECTED);
         EM_MAKE_CASE(EM_STATUS_CONNECTING);

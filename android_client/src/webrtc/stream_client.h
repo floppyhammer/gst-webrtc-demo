@@ -14,7 +14,7 @@
 #include <glib-object.h>
 #include <stdbool.h>
 
-#include "em_connection.h"
+#include "connection.h"
 
 #ifdef __cplusplus
 extern "C" {

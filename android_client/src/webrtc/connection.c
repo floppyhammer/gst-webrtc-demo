@@ -12,15 +12,15 @@
  * @ingroup em_client
  */
 
-#include "em_connection.h"
+#include "connection.h"
 
 #include <gst/gstelement.h>
 #include <gst/gstobject.h>
 #include <stdbool.h>
 #include <string.h>
 
-#include "em_app_log.h"
-#include "em_status.h"
+#include "app_log.h"
+#include "status.h"
 
 #define GST_USE_UNSTABLE_API
 #include <gst/webrtc/webrtc.h>
@@ -48,7 +48,7 @@ struct _EmConnection {
     GstElement *webrtcbin;
     GstWebRTCDataChannel *datachannel;
 
-    enum em_status status;
+    enum status status;
 };
 
 G_DEFINE_TYPE(EmConnection, em_connection, G_TYPE_OBJECT)
@@ -295,7 +295,7 @@ static const char *peer_connection_state_to_string(GstWebRTCPeerConnectionState 
 
 #undef MAKE_CASE
 
-static void emconn_update_status(EmConnection *emconn, enum em_status status) {
+static void emconn_update_status(EmConnection *emconn, enum status status) {
     if (status == emconn->status) {
         ALOGI("emconn: state update: already in %s", em_status_to_string(emconn->status));
         return;
@@ -326,7 +326,7 @@ static void emconn_update_status_from_peer_connection_state(EmConnection *emconn
     }
 }
 
-static void emconn_disconnect_internal(EmConnection *emconn, enum em_status status) {
+static void emconn_disconnect_internal(EmConnection *emconn, enum status status) {
     if (emconn->ws_cancel != NULL) {
         g_cancellable_cancel(emconn->ws_cancel);
         gst_clear_object(&emconn->ws_cancel);
@@ -362,7 +362,7 @@ static void emconn_data_channel_message_string_cb(GstWebRTCDataChannel *datachan
     ALOGI("%s: Received data channel message: %s", __FUNCTION__, str);
 }
 
-static void emconn_connect_internal(EmConnection *emconn, enum em_status status);
+static void emconn_connect_internal(EmConnection *emconn, enum status status);
 
 static void emconn_webrtc_deep_notify_callback(GstObject *self,
                                                GstObject *prop_object,
@@ -658,7 +658,7 @@ void em_connection_set_pipeline(EmConnection *emconn, GstPipeline *pipeline) {
     //                     NULL);
 }
 
-static void emconn_connect_internal(EmConnection *emconn, enum em_status status) {
+static void emconn_connect_internal(EmConnection *emconn, enum status status) {
     em_connection_disconnect(emconn);
     if (!emconn->ws_cancel) {
         emconn->ws_cancel = g_cancellable_new();

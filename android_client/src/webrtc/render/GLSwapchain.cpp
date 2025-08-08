@@ -15,7 +15,7 @@
 
 #include <cassert>
 
-#include "../em_app_log.h"
+#include "../app_log.h"
 
 GLSwapchain::~GLSwapchain() {
     reset();

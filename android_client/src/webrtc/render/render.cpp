@@ -16,7 +16,7 @@
 #include <cstdlib>
 #include <stdexcept>
 
-#include "../em_app_log.h"
+#include "../app_log.h"
 #include "GLDebug.h"
 #include "GLError.h"
 

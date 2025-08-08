@@ -8,7 +8,7 @@
  * @ingroup em_client
  */
 
-#include "em_stream_client.h"
+#include "stream_client.h"
 
 #include <gst/app/gstappsink.h>
 #include <gst/gl/gl.h>
@@ -23,8 +23,8 @@
 #include <gst/video/video-frame.h>
 #include <gst/webrtc/webrtc.h>
 
-#include "em_app_log.h"
-#include "em_connection.h"
+#include "app_log.h"
+#include "connection.h"
 #include "gst_common.h" // for em_sample
 
 // clang-format off

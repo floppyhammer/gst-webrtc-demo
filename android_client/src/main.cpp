@@ -1,7 +1,3 @@
-// Copyright 2023, Pluto VR, Inc.
-//
-// SPDX-License-Identifier: BSL-1.0
-
 /*!
  * @file
  * @brief Main file for WebRTC client.
@@ -31,12 +27,12 @@
 #include <thread>
 
 #include "EglData.hpp"
-#include "em/em_app_log.h"
-#include "em/em_connection.h"
-#include "em/em_stream_client.h"
-#include "em/gst_common.h"
-#include "em/render/render.hpp"
-#include "em/render/render_api.h"
+#include "webrtc/app_log.h"
+#include "webrtc/connection.h"
+#include "webrtc/gst_common.h"
+#include "webrtc/render/render.hpp"
+#include "webrtc/render/render_api.h"
+#include "webrtc/stream_client.h"
 
 namespace {
 

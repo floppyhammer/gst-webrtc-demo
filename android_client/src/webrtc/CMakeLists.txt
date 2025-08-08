@@ -4,8 +4,8 @@
 
 add_library(
         gst_webrtc_client SHARED
-        em_connection.c
-        em_stream_client.c
+        connection.c
+        stream_client.c
         render/GLDebug.cpp
         render/GLError.cpp
         render/GLSwapchain.cpp

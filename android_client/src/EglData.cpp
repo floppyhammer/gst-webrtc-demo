@@ -1,13 +1,10 @@
-// Copyright 2023, Pluto VR, Inc.
-//
-// SPDX-License-Identifier: BSL-1.0
-
 /*!
  * @file
  * @brief Encapsulate EGL setup/teardown.
  * @author Moshi Turner <moses@collabora.com>
  * @author Rylie Pavlik <rpavlik@collabora.com>
  */
+
 #include "EglData.hpp"
 
 #include <EGL/egl.h>
@@ -15,8 +12,8 @@
 
 #include <stdexcept>
 
-#include "em/em_app_log.h"
-#include "em/render/GLError.h"
+#include "webrtc/app_log.h"
+#include "webrtc/render/GLError.h"
 
 EglData::EglData(ANativeWindow *window) {
     display = eglGetDisplay(EGL_DEFAULT_DISPLAY);

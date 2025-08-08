@@ -14,7 +14,7 @@
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
 
-#include "../em_app_log.h"
+#include "../app_log.h"
 
 bool checkGLError(const char *func, int line) {
     GLenum err = glGetError();
