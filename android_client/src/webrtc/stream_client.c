@@ -343,15 +343,20 @@ static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpo
         GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER(info);
         GstClockTime pts = GST_BUFFER_PTS(buf);
 
-        static GstClockTime previous_pts = 0;
-        static int64_t previous_time = 0;
+        static GstClockTime newest_pts = 0;
         static uint32_t seq_num = 0;
 
-        if (previous_pts != 0) {
-            int64_t pts_diff = (pts - previous_pts) / 1e6;
+        if (newest_pts != 0) {
+            int64_t pts_diff = ((int64_t)pts - (int64_t)newest_pts) / 1e6;
 
-            if (pts_diff > 50) {
-                ALOGE("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT ", PTS diff: %ld late packet",
+            if (pts_diff < 0) {
+                ALOGE("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT
+                      ", PTS diff: %ld. Bad packet: decreasing timestamp",
+                      GST_TIME_ARGS(pts),
+                      pts_diff);
+            } else if (pts_diff > 50) {
+                ALOGE("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT
+                      ", PTS diff: %ld. Bad packet: arrives too late",
                       GST_TIME_ARGS(pts),
                       pts_diff);
             } else {
@@ -360,7 +365,7 @@ static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpo
                       pts_diff);
             }
         }
-        previous_pts = pts;
+        newest_pts = newest_pts > pts ? newest_pts : pts;
 
         GstMapInfo map;
         if (gst_buffer_map(buf, &map, GST_MAP_READ)) {
