@@ -91,6 +91,113 @@ bool poll_events(struct android_app *app, struct MyState &state) {
 
 } // namespace
 
+// For GStreamer (ensure you have includes and linking set up in CMakeLists.txt)
+// #include <gst/gst.h>
+// #include <gst/app/gstappsrc.h>
+
+static struct MyGstData *mgd = NULL;
+
+#define TAG "GstWebrtcServerNative"
+
+// Example: Pointer to a GStreamer AppSrc element if you're pushing data to it
+// GstAppSrc *audio_app_src = nullptr;
+
+extern "C" {
+
+// JNI function corresponding to nativeProcessAudio(data: ByteArray, size: Int, timestamp: Long)
+JNIEXPORT void JNICALL Java_com_gst_webrtc_1server_ScreenCaptureService_nativeProcessAudio(JNIEnv *env,
+                                                                                           jobject /* this */,
+                                                                                           jbyteArray data,
+                                                                                           jint size,
+                                                                                           jlong timestamp) {
+    if (!data || size <= 0) {
+        __android_log_print(ANDROID_LOG_WARN, TAG, "Received empty or invalid audio data.");
+        return;
+    }
+
+    // Get the byte array elements from Java. This might involve a copy.
+    jbyte *audio_bytes = env->GetByteArrayElements(data, nullptr);
+    if (!audio_bytes) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "Failed to get byte array elements.");
+        return;
+    }
+
+    // --- Process the audio_bytes (PCM data) here ---
+    // For example, log the first few bytes or the size
+    // __android_log_print(ANDROID_LOG_INFO, TAG, "Native received %d audio bytes. Timestamp: %lld", size, timestamp);
+    // if (size > 4) {
+    //     __android_log_print(ANDROID_LOG_DEBUG, TAG, "First 4 bytes: %d %d %d %d",
+    //                         audio_bytes[0], audio_bytes[1], audio_bytes[2], audio_bytes[3]);
+    // }
+
+    server_pipeline_push_pcm(mgd, audio_bytes, size);
+
+    // Release the byte array elements. '0' means copy back changes (if any) and free the buffer.
+    // JNI_ABORT means free the buffer without copying back if you didn't modify it.
+    env->ReleaseByteArrayElements(data, audio_bytes, JNI_ABORT);
+}
+
+// If using a direct ByteBuffer:
+// JNIEXPORT void JNICALL
+// Java_com_gst_webrtc_1server_StreamingActivity_nativeProcessDirectAudio(
+//         JNIEnv *env,
+//         jobject /* this */,
+//         jobject buffer, // This is the ByteBuffer jobject
+//         jint size,
+//         jlong timestamp) {
+//
+//     if (!buffer || size <= 0) {
+//         __android_log_print(ANDROID_LOG_WARN, TAG, "Received null or empty direct buffer.");
+//         return;
+//     }
+//
+//     // Get direct access to the buffer's memory
+//     uint8_t *direct_audio_bytes = static_cast<uint8_t *>(env->GetDirectBufferAddress(buffer));
+//     if (!direct_audio_bytes) {
+//         __android_log_print(ANDROID_LOG_ERROR, TAG, "Failed to get direct buffer address.");
+//         return;
+//     }
+//
+//     // --- Process the direct_audio_bytes (PCM data) here ---
+//     // __android_log_print(ANDROID_LOG_INFO, TAG, "Native received %d direct audio bytes. Timestamp: %lld", size,
+//     timestamp);
+//
+//     // No need to release direct buffer elements like GetByteArrayElements,
+//     // as you are working directly with the memory managed by the Java ByteBuffer.
+// }
+
+// Optional: JNI functions for initializing/releasing native components
+/*
+JNIEXPORT jlong JNICALL
+Java_com_gst_webrtc_1server_StreamingActivity_nativeInit(JNIEnv *env, jobject thiz) {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "NativeInit called.");
+    // Initialize GStreamer, create pipeline, setup appsrc, etc.
+    // gst_init(nullptr, nullptr);
+    // GstElement *pipeline = gst_pipeline_new("audio-pipeline");
+    // audio_app_src = GST_APP_SRC(gst_element_factory_make("appsrc", "audio_source"));
+    // ... configure appsrc (caps, format, stream-type, etc.)
+    // gst_bin_add(GST_BIN(pipeline), GST_ELEMENT(audio_app_src));
+    // ... add other GStreamer elements and link them ...
+    // gst_element_set_state(pipeline, GST_STATE_PLAYING);
+    // return (jlong)pipeline; // Or some other native object handle
+    return 0; // Placeholder
+}
+
+JNIEXPORT void JNICALL
+Java_com_gst_webrtc_1server_StreamingActivity_nativeRelease(JNIEnv *env, jobject thiz, jlong ptr) {
+    __android_log_print(ANDROID_LOG_INFO, TAG, "NativeRelease called.");
+    // GstElement *pipeline = (GstElement *)ptr;
+    // if (pipeline) {
+    //     gst_element_set_state(pipeline, GST_STATE_NULL);
+    //     gst_object_unref(pipeline);
+    //     audio_app_src = nullptr; // Clear the global pointer
+    // }
+    // gst_deinit(); // If GStreamer is no longer needed
+}
+*/
+
+} // extern "C"
+
 void android_main(struct android_app *app) {
     // Debugging gstreamer.
     // GST_DEBUG = *:3 will give you ONLY ERROR-level messages.
@@ -114,7 +221,6 @@ void android_main(struct android_app *app) {
     app->onAppCmd = onAppCmd;
 
     //////////////////////////////////////////
-    struct MyGstData *mgd = NULL;
     server_pipeline_create(&mgd);
 
     server_pipeline_play(mgd);

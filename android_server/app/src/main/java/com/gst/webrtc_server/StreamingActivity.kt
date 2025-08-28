@@ -1,9 +1,11 @@
 package com.gst.webrtc_server
 
 import android.Manifest
+import android.app.Activity
 import org.freedesktop.gstreamer.GStreamer
 
 import android.app.NativeActivity
+import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioFormat
@@ -11,77 +13,86 @@ import android.media.AudioPlaybackCaptureConfiguration
 import android.media.AudioRecord
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
 import android.os.PersistableBundle
 import android.util.Log
+import android.widget.Toast
 import androidx.annotation.RequiresPermission
+import androidx.core.content.getSystemService
+import java.util.concurrent.Executors
 
 class StreamingActivity : NativeActivity() {
-    // In your Activity or Fragment
     private lateinit var mediaProjectionManager: MediaProjectionManager
-    private var mediaProjection: MediaProjection? = null
-    private var audioRecord: AudioRecord? = null
 
-    override fun onCreate(savedInstanceState: Bundle?, persistentState: PersistableBundle?) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         System.loadLibrary("gst_webrtc_server_android")
         Log.i("GstWebrtcServer", "StreamingActivity: loaded so")
 
-        super.onCreate(savedInstanceState, persistentState)
+        super.onCreate(savedInstanceState)
 
         mediaProjectionManager =
             getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+
+        startInternalAudioCapture()
     }
 
     private fun startInternalAudioCapture() {
+        // Bring up the ScreenCapture prompt
         val captureIntent = mediaProjectionManager.createScreenCaptureIntent()
         startActivityForResult(captureIntent, REQUEST_CODE_MEDIA_PROJECTION)
     }
 
     @RequiresPermission(Manifest.permission.RECORD_AUDIO)
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE_MEDIA_PROJECTION && resultCode == RESULT_OK) {
-            mediaProjection = mediaProjectionManager.getMediaProjection(resultCode, data!!)
-            startAudioRecording()
+            startScreenCaptureService(resultCode, data)
         }
     }
 
-    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
-    private fun startAudioRecording() {
-        val config = AudioPlaybackCaptureConfiguration.Builder(mediaProjection!!)
-            .addMatchingUsage(AudioAttributes.USAGE_MEDIA) // Capture media playback
-            .build()
+    // In StreamingActivity
+    private fun startScreenCaptureService(resultCode: Int, data: Intent) {
+        Log.d("StreamingActivity", "Attempting to start ScreenCaptureService.")
 
-        val audioFormat = AudioFormat.Builder()
-            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-            .setSampleRate(44100)
-            .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
-            .build()
+        // 1. Create an Intent to start ScreenCaptureService
+        val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+            // 2. Set the action to tell the service what to do (e.g., start capture)
+            action = ScreenCaptureService.ACTION_START
 
-        val bufferSize = AudioRecord.getMinBufferSize(
-            audioFormat.sampleRate,
-            audioFormat.channelMask,
-            audioFormat.encoding
+            // 3. Pass the MediaProjection result code and data Intent as extras
+            //    The service will use these to obtain the MediaProjection object.
+            putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode)
+            putExtra(ScreenCaptureService.EXTRA_DATA_INTENT, data)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+            Log.i("StreamingActivity", "Called startForegroundService for ScreenCaptureService.")
+        } else {
+            startService(serviceIntent)
+            Log.i("StreamingActivity", "Called startService for ScreenCaptureService.")
+        }
+//        isServiceRunning = true
+
+        Log.i(
+            "StreamingActivity",
+            "Call to start(Foreground)Service for ScreenCaptureService has been made with action: ${serviceIntent.action}"
         )
-
-        audioRecord = AudioRecord.Builder()
-            .setAudioFormat(audioFormat)
-            .setBufferSizeInBytes(bufferSize)
-            .setAudioPlaybackCaptureConfig(config)
-            .build()
-
-        audioRecord?.startRecording()
-
-        // Start a separate thread to read audio data from audioRecord
-        // and process/save it.
     }
 
-    private fun stopAudioRecording() {
-        audioRecord?.stop()
-        audioRecord?.release()
-        audioRecord = null
-        mediaProjection?.stop()
-        mediaProjection = null
+    private fun stopScreenCaptureService() {
+        val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+            // THIS IS WHERE THE ACTION IS SET FOR STOPPING
+            action = ScreenCaptureService.ACTION_STOP
+        }
+        startService(serviceIntent) // Send stop command
+//        isServiceRunning = false
+
+        Log.i(
+            "StreamingActivity",
+            "Stop command sent to ScreenCaptureService with action: ${serviceIntent.action}"
+        )
     }
 
     companion object {

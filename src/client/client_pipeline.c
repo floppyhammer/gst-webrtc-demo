@@ -186,10 +186,18 @@ static void webrtc_on_ice_candidate_cb(GstElement *webrtcbin, guint mlineindex, 
     g_object_unref(builder);
 }
 
-static void on_handoff(GstElement *identity, GstBuffer *buffer, gpointer user_data) {
+static void on_video_handoff(GstElement *identity, GstBuffer *buffer, gpointer user_data) {
     GstClockTime pts = GST_BUFFER_PTS(buffer);
     GstClockTime dts = GST_BUFFER_DTS(buffer);
     // g_print("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
+}
+
+static void on_audio_handoff(GstElement *identity, GstBuffer *buffer, gpointer user_data) {
+    GstClockTime pts = GST_BUFFER_PTS(buffer);
+    GstClockTime duration = GST_BUFFER_DURATION(buffer);
+    g_print("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
+            GST_TIME_ARGS(pts),
+            GST_TIME_ARGS(duration));
 }
 
 /// Handle incoming media stream
@@ -206,16 +214,23 @@ static void handle_media_stream(GstPad *pad, GstElement *pipeline, const char *c
     g_assert_nonnull(sink);
 
     if (g_strcmp0(convert_name, "audioconvert") == 0) {
+        GstElement *identity = gst_element_factory_make("identity", NULL);
+        g_assert_nonnull(identity);
+        g_object_set(identity, "signal-handoffs", TRUE, NULL);
+
         /* Might also need to resample, so add it just in case.
          * Will be a no-op if it's not required. */
         GstElement *resample = gst_element_factory_make("audioresample", NULL);
         g_assert_nonnull(resample);
-        gst_bin_add_many(GST_BIN(pipeline), q, conv, resample, sink, NULL);
+        gst_bin_add_many(GST_BIN(pipeline), q, conv, resample, sink, identity, NULL);
         gst_element_sync_state_with_parent(q);
         gst_element_sync_state_with_parent(conv);
         gst_element_sync_state_with_parent(resample);
         gst_element_sync_state_with_parent(sink);
-        gst_element_link_many(q, conv, resample, sink, NULL);
+        gst_element_sync_state_with_parent(identity);
+        gst_element_link_many(q, conv, identity, resample, sink, NULL);
+
+        g_signal_connect(identity, "handoff", G_CALLBACK(on_audio_handoff), NULL);
     } else {
         GstElement *identity = gst_element_factory_make("identity", NULL);
         g_assert_nonnull(identity);
@@ -230,7 +245,7 @@ static void handle_media_stream(GstPad *pad, GstElement *pipeline, const char *c
         gst_element_sync_state_with_parent(identity);
         gst_element_link_many(q, conv, identity, sink, NULL);
 
-        g_signal_connect(identity, "handoff", G_CALLBACK(on_handoff), NULL);
+        g_signal_connect(identity, "handoff", G_CALLBACK(on_video_handoff), NULL);
     }
 
     GstPad *qpad = gst_element_get_static_pad(q, "sink");
@@ -479,7 +494,7 @@ static void on_webrtcbin_stats(GstPromise *promise, GstElement *user_data) {
     const GstStructure *reply = gst_promise_get_reply(promise);
 
     GString *json = webrtc_stats_get_json(reply);
-    ALOGD("webrtcbin stats: %s", json->str);
+    // ALOGD("webrtcbin stats: %s", json->str);
     g_string_free(json, TRUE);
 }
 
