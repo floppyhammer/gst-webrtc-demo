@@ -21,8 +21,6 @@
 // Note: currently, enabling audio introduces extra latency
 #define ENABLE_AUDIO
 
-#define USE_H264
-
 static SignalingServer* signaling_server = NULL;
 
 struct MyGstData {
@@ -121,14 +119,9 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
 
         GstPadTemplate* pad_template = gst_element_class_get_pad_template(GST_ELEMENT_GET_CLASS(webrtcbin), "sink_%u");
 
-#ifdef USE_H264
         GstCaps* caps = gst_caps_from_string(
             "application/x-rtp,"
             "payload=96,encoding-name=H264,clock-rate=90000,media=video,packetization-mode=(string)1");
-#else
-        GstCaps* caps =
-            gst_caps_from_string("application/x-rtp,encoding-name=VP8,clock-rate=90000,media=video,payload=96");
-#endif
 
         GstPad* sink_pad = gst_element_request_pad(webrtcbin, pad_template, "sink_0", caps);
 
@@ -537,48 +530,40 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
 
     // Setup pipeline
     // is-live=true is to fix first frame delay
-    gchar*
-        pipeline_str =
-            g_strdup_printf(
-                // "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
-                // "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
-                // "audiotestsrc is-live=true wave=red-noise ! "
-                "filesrc location=test.mp4 ! "
-                "decodebin3 name=dec "
-                "dec. ! queue ! audioconvert ! "
-                "audioresample ! "
-                "queue ! "
-                "opusenc perfect-timestamp=true ! "
-                "rtpopuspay ! "
-                "application/x-rtp,encoding-name=OPUS,media=audio,payload=127,ssrc=(uint)3484078953 ! "
-                "queue ! "
-                "tee name=%s allow-not-linked=true "
-                "dec. ! queue name=q1 ! videoconvert ! "
-                "timeoverlay ! "
+    gchar* pipeline_str = g_strdup_printf(
 #ifndef ANDROID
-                // Local display sink for latency comparison
-                "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! "
-#endif
-#ifdef USE_H264
-                // Software encoder
-                // "x264enc tune=zerolatency bitrate=4000 ! "
-                // "video/x-h264,profile=baseline ! "
-
-                "encodebin2 "
-                "profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120,bitrate=8000\" ! " // (Forced bitrate) bitrate=8000
+        "filesrc location=test.mp4 ! "
+        "decodebin3 name=dec "
+        "dec. ! "
+        "queue ! "
 #else
-                "encodebin2 profile=\"video/x-vp8|element-properties,deadline=1,target-bitrate=4000000\" ! " // (Forced bitrate) target-bitrate=4000000
+        "openslessrc ! "
+    // "audiotestsrc is-live=true wave=red-noise ! "
 #endif
-#ifdef USE_H264
-                "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "
-                "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
+        "audioconvert ! "
+        "audioresample ! "
+        "queue ! "
+        "opusenc perfect-timestamp=true ! "
+        "rtpopuspay ! "
+        "application/x-rtp,encoding-name=OPUS,media=audio,payload=127,ssrc=(uint)3484078953 ! "
+        "queue ! "
+        "tee name=%s allow-not-linked=true "
+#ifndef ANDROID
+        "dec. ! "
 #else
-                "rtpvp8pay ! "
-                "application/x-rtp,encoding-name=VP8,media=video,payload=96,ssrc=(uint)3484078952 ! "
+        "videotestsrc pattern=colors is-live=true horizontal-speed=2 ! "
+        "video/x-raw,format=NV12,width=1280,height=720,framerate=60/1 ! "
 #endif
-                "tee name=%s allow-not-linked=true",
-                AUDIO_TEE_NAME,
-                VIDEO_TEE_NAME);
+        "queue name=q1 ! "
+        "videoconvert ! "
+        "timeoverlay ! "
+        "encodebin2 "
+        "profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120,bitrate=8000\" ! "
+        "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "
+        "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
+        "tee name=%s allow-not-linked=true",
+        AUDIO_TEE_NAME,
+        VIDEO_TEE_NAME);
 
     // No webrtcbin yet until later!
 

@@ -15,6 +15,7 @@ target_link_libraries(
         ${LIBSOUP_LIBRARIES}
         EGL::EGL
         android
+        OpenSLES
         PUBLIC ${ANDROID_LOG_LIBRARY} z
 )
 target_include_directories(

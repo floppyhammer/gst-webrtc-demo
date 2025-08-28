@@ -56,6 +56,8 @@ GST_PLUGIN_STATIC_DECLARE(opus);
 GST_PLUGIN_STATIC_DECLARE(pango);
 // To use vp8 encoder
 GST_PLUGIN_STATIC_DECLARE(vpx);
+GST_PLUGIN_STATIC_DECLARE(opensles);
+
 /* Declaration of static gio modules */
 
 /* Call this function to load GIO modules */
@@ -111,5 +113,7 @@ gst_init_static_plugins(void) {
     GST_PLUGIN_STATIC_REGISTER(opus);
     GST_PLUGIN_STATIC_REGISTER(pango);
     GST_PLUGIN_STATIC_REGISTER(vpx);
+    GST_PLUGIN_STATIC_REGISTER(opensles);
+
     gst_android_load_gio_modules();
 }
