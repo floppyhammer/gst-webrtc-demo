@@ -1,6 +1,5 @@
 #pragma once
 
-#include <EGL/egl.h>
 #include <glib-object.h>
 
 #include "connection.h"

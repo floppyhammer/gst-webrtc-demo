@@ -1,4 +1,4 @@
-#if defined(__linux__) && !defined(ANDROID)
+#if !defined(ANDROID)
 
     #include <gst/gst.h>
     #include <stdint.h>

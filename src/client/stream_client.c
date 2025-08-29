@@ -13,8 +13,11 @@
 #include <gst/gstsample.h>
 #include <gst/gstutils.h>
 #include <gst/video/video-frame.h>
+#define GST_USE_UNSTABLE_API
 #include <gst/webrtc/webrtc.h>
+#undef GST_USE_UNSTABLE_API
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -36,6 +39,14 @@ struct my_sc_sample {
 #endif
 
 /*!
+ * Run function.
+ *
+ * @public @memberof os_thread
+ */
+typedef void *(*os_run_func_t)(void *);
+
+#ifdef __linux__
+/*!
  * All in one helper that handles locking, waiting for change and starting a
  * thread.
  */
@@ -47,13 +58,6 @@ struct os_thread_helper {
     bool initialized;
     bool running;
 };
-
-/*!
- * Run function.
- *
- * @public @memberof os_thread
- */
-typedef void *(*os_run_func_t)(void *);
 
 /*!
  * Start the internal thread.
@@ -84,22 +88,12 @@ static int os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t fu
 }
 
 /*!
- * Zeroes the correct amount of memory based on the type pointed-to by the
- * argument.
- *
- * Use instead of memset(..., 0, ...) on a structure or pointer to structure.
- *
- * @ingroup aux_util
- */
-#define U_ZERO(PTR) memset((PTR), 0, sizeof(*(PTR)))
-
-/*!
  * Initialize the thread helper.
  *
  * @public @memberof os_thread_helper
  */
 static int os_thread_helper_init(struct os_thread_helper *oth) {
-    U_ZERO(oth);
+    memset(oth, 0, sizeof(struct os_thread_helper));
 
     int ret = pthread_mutex_init(&oth->mutex, NULL);
     if (ret != 0) {
@@ -115,6 +109,56 @@ static int os_thread_helper_init(struct os_thread_helper *oth) {
 
     return 0;
 }
+#else
+struct os_thread_helper {
+    GThread *thread;
+    GMutex mutex;
+    GCond cond;
+
+    bool initialized;
+    bool running;
+};
+
+/*!
+ * Initialize the thread helper.
+ *
+ * @public @memberof os_thread_helper
+ */
+static int os_thread_helper_init(struct os_thread_helper *oth) {
+    g_assert(oth != NULL);
+    memset(oth, 0, sizeof(struct os_thread_helper));
+
+    g_mutex_init(&oth->mutex);
+    g_cond_init(&oth->cond);
+
+    oth->initialized = true;
+
+    return 0;
+}
+
+static int os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t func, void *ptr) {
+    g_mutex_lock(&oth->mutex);
+
+    g_assert(oth->initialized);
+
+    if (oth->running) {
+        g_mutex_unlock(&oth->mutex);
+        return -1;
+    }
+
+    oth->thread = g_thread_new(NULL, (GThreadFunc)func, ptr);
+    if (!oth->thread) {
+        g_mutex_unlock(&oth->mutex);
+        return -1; // -1 for "creation failed"
+    }
+
+    oth->running = true;
+
+    g_mutex_unlock(&oth->mutex);
+
+    return 0;
+}
+#endif
 
 struct my_stream_client {
     GMainLoop *loop;
@@ -181,7 +225,7 @@ static void on_need_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc);
 
 static void on_drop_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc);
 
-static void *my_stream_client_thread_func(void *ptr);
+static void *my_stream_client_thread_func(const void *ptr);
 
 /*
  * Helper functions
@@ -874,8 +918,8 @@ static void on_drop_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc) {
     gst_clear_object(&sc->app_sink);
 }
 
-static void *my_stream_client_thread_func(void *ptr) {
-    MyStreamClient *sc = (MyStreamClient *)ptr;
+static void *my_stream_client_thread_func(const void *ptr) {
+    const MyStreamClient *sc = ptr;
 
     ALOGI("%s: running GMainLoop", __FUNCTION__);
     g_main_loop_run(sc->loop);
