@@ -42,8 +42,8 @@ struct my_client_state {
     int32_t width;
     int32_t height;
 
-    EmConnection *connection;
-    EmStreamClient *stream_client;
+    MyConnection *connection;
+    MyStreamClient *stream_client;
 };
 
 std::unique_ptr<Renderer> renderer;
@@ -52,7 +52,7 @@ std::unique_ptr<EglData> egl_data;
 
 my_client_state my_state = {};
 
-void connected_cb(EmConnection *connection, struct my_client_state *state) {
+void connected_cb(MyConnection *connection, struct my_client_state *state) {
     ALOGI("%s: Got signal that we are connected!", __FUNCTION__);
 
     state->connected = true;
@@ -71,7 +71,7 @@ void onAppCmd(struct android_app *app, int32_t cmd) {
             break;
         case APP_CMD_STOP:
             ALOGE("APP_CMD_STOP - shutting down connection");
-            em_connection_disconnect(my_state.connection);
+            my_connection_disconnect(my_state.connection);
             my_state.connected = false;
             break;
         case APP_CMD_DESTROY:
@@ -86,20 +86,20 @@ void onAppCmd(struct android_app *app, int32_t cmd) {
             eglQuerySurface(egl_data->display, egl_data->surface, EGL_WIDTH, &my_state.width);
             eglQuerySurface(egl_data->display, egl_data->surface, EGL_HEIGHT, &my_state.height);
 
-            my_state.stream_client = em_stream_client_new();
-            em_stream_client_set_egl_context(my_state.stream_client,
+            my_state.stream_client = my_stream_client_new();
+            my_stream_client_set_egl_context(my_state.stream_client,
                                              egl_data->context,
                                              egl_data->display,
                                              egl_data->surface);
 
-            my_state.connection = g_object_ref_sink(em_connection_new_localhost());
+            my_state.connection = g_object_ref_sink(my_connection_new_localhost());
 
             g_signal_connect(my_state.connection, "webrtc_connected", G_CALLBACK(connected_cb), &my_state);
 
-            em_connection_connect(my_state.connection);
+            my_connection_connect(my_state.connection);
 
             ALOGI("%s: starting stream client mainloop thread", __FUNCTION__);
-            em_stream_client_spawn_thread(my_state.stream_client, my_state.connection);
+            my_stream_client_spawn_thread(my_state.stream_client, my_state.connection);
 
             try {
                 ALOGI("%s: Setup renderer...", __FUNCTION__);
@@ -113,7 +113,7 @@ void onAppCmd(struct android_app *app, int32_t cmd) {
         } break;
         case APP_CMD_TERM_WINDOW:
             ALOGI("APP_CMD_TERM_WINDOW - shutting down connection");
-            em_connection_disconnect(my_state.connection);
+            my_connection_disconnect(my_state.connection);
             my_state.connected = false;
             break;
     }
@@ -151,7 +151,7 @@ bool poll_events(struct android_app *app) {
 
 } // namespace
 
-struct em_sample *prev_sample;
+struct my_sample *prev_sample;
 
 void android_main(struct android_app *app) {
     setenv("GST_DEBUG", "*:2,webrtc*:9,sctp*:9,dtls*:9,amcvideodec:9", 1);
@@ -205,7 +205,7 @@ void android_main(struct android_app *app) {
         egl_data->makeCurrent();
 
         struct timespec decodeEndTime;
-        struct em_sample *sample = em_stream_client_try_pull_sample(my_state.stream_client, &decodeEndTime);
+        struct my_sample *sample = my_stream_client_try_pull_sample(my_state.stream_client, &decodeEndTime);
 
         if (sample == nullptr) {
             continue;
@@ -224,7 +224,7 @@ void android_main(struct android_app *app) {
 
         // Release old sample
         if (prev_sample != NULL) {
-            em_stream_client_release_sample(my_state.stream_client, prev_sample);
+            my_stream_client_release_sample(my_state.stream_client, prev_sample);
             prev_sample = NULL;
         }
         prev_sample = sample;
@@ -240,7 +240,7 @@ void android_main(struct android_app *app) {
 
     g_clear_object(&my_state.connection);
 
-    em_stream_client_destroy(&my_state.stream_client);
+    my_stream_client_destroy(&my_state.stream_client);
 
     egl_data = nullptr;
 

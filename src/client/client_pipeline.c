@@ -13,11 +13,11 @@ struct my_client_state {
     int32_t width;
     int32_t height;
 
-    EmConnection *connection;
-    EmStreamClient *stream_client;
+    MyConnection *connection;
+    MyStreamClient *stream_client;
 };
 
-void webrtc_connected_cb(EmConnection *connection, struct my_client_state *state) {
+void webrtc_connected_cb(MyConnection *connection, struct my_client_state *state) {
     ALOGI("%s: Got signal that we are connected!", __FUNCTION__);
 
     state->connected = true;
@@ -41,27 +41,27 @@ void client_create(struct my_client_state **out_client_state) {
         //      gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
     }
 
-    my_state->stream_client = em_stream_client_new();
+    my_state->stream_client = my_stream_client_new();
 
-    my_state->connection = g_object_ref_sink(em_connection_new_localhost());
+    my_state->connection = g_object_ref_sink(my_connection_new_localhost());
 
     g_signal_connect(my_state->connection, "webrtc_connected", G_CALLBACK(webrtc_connected_cb), &my_state);
 
-    em_connection_connect(my_state->connection);
+    my_connection_connect(my_state->connection);
 
     ALOGI("%s: starting stream client mainloop thread", __FUNCTION__);
-    em_stream_client_spawn_thread(my_state->stream_client, my_state->connection);
+    my_stream_client_spawn_thread(my_state->stream_client, my_state->connection);
 
     *out_client_state = my_state;
 }
 
 void client_stop(struct my_client_state *client_state) {
-    em_connection_disconnect(client_state->connection);
+    my_connection_disconnect(client_state->connection);
     client_state->connected = false;
 
     g_clear_object(&client_state->connection);
 
-    em_stream_client_destroy(&client_state->stream_client);
+    my_stream_client_destroy(&client_state->stream_client);
 
     free(client_state);
 }

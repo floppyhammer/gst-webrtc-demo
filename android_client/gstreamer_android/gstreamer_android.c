@@ -1,7 +1,3 @@
-// Copyright 2023, Pluto VR, Inc.
-//
-// SPDX-License-Identifier: BSL-1.0
-
 #include <gio/gio.h>
 #include <gst/gst.h>
 
