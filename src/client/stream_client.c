@@ -64,12 +64,13 @@ static int os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t fu
     pthread_mutex_lock(&oth->mutex);
 
     g_assert(oth->initialized);
+
     if (oth->running) {
         pthread_mutex_unlock(&oth->mutex);
         return -1;
     }
 
-    int ret = pthread_create(&oth->thread, NULL, func, ptr);
+    const int ret = pthread_create(&oth->thread, NULL, func, ptr);
     if (ret != 0) {
         pthread_mutex_unlock(&oth->mutex);
         return ret;
@@ -139,18 +140,16 @@ struct my_stream_client {
         // 16x16 pbuffer surface
         EGLSurface surface;
     } egl;
-#endif
 
-    GstElement *appsink;
-
-#ifdef ANDROID
     GLenum frame_texture_target;
     GLenum texture_target;
     GLuint texture_id;
-#endif
 
     int width;
     int height;
+#endif
+
+    GstElement *app_sink;
 
     struct os_thread_helper play_thread;
 
@@ -193,13 +192,12 @@ static void my_stream_client_set_connection(MyStreamClient *sc, MyConnection *co
 /* GObject method implementations */
 
 static void my_stream_client_init(MyStreamClient *sc) {
-    ALOGI("%s: creating stuff", __FUNCTION__);
-
+    g_assert_nonnull(sc);
     memset(sc, 0, sizeof(MyStreamClient));
+
     sc->loop = g_main_loop_new(NULL, FALSE);
     g_assert(os_thread_helper_init(&sc->play_thread) >= 0);
     g_mutex_init(&sc->sample_mutex);
-    ALOGI("%s: done creating stuff", __FUNCTION__);
 }
 
 #ifdef ANDROID
@@ -235,7 +233,7 @@ static void my_stream_client_dispose(MyStreamClient *self) {
     gst_clear_object(&self->display);
     gst_clear_object(&self->context);
 #endif
-    gst_clear_object(&self->appsink);
+    gst_clear_object(&self->app_sink);
 }
 
 static void my_stream_client_finalize(MyStreamClient *self) {
@@ -433,6 +431,7 @@ static void handle_media_stream(GstPad *src_pad, MyStreamClient *sc, const char 
         GstElement *identity = gst_element_factory_make("identity", NULL);
         g_assert_nonnull(identity);
         g_object_set(identity, "signal-handoffs", TRUE, NULL);
+        g_signal_connect(identity, "handoff", G_CALLBACK(on_audio_handoff), NULL);
 
         /* Might also need to resample, so add it just in case.
          * Will be a no-op if it's not required. */
@@ -441,18 +440,18 @@ static void handle_media_stream(GstPad *src_pad, MyStreamClient *sc, const char 
 
         gst_bin_add_many(GST_BIN(sc->pipeline), q, conv, resample, sink, identity, NULL);
 
+        // State sync is necessary
         gst_element_sync_state_with_parent(q);
         gst_element_sync_state_with_parent(conv);
         gst_element_sync_state_with_parent(resample);
         gst_element_sync_state_with_parent(sink);
         gst_element_sync_state_with_parent(identity);
-        gst_element_link_many(q, conv, identity, resample, sink, NULL);
 
-        g_signal_connect(identity, "handoff", G_CALLBACK(on_audio_handoff), NULL);
+        gst_element_link_many(q, conv, identity, resample, sink, NULL);
 
         GstPad *q_pad = gst_element_get_static_pad(q, "sink");
 
-        GstPadLinkReturn ret = gst_pad_link(src_pad, q_pad);
+        const GstPadLinkReturn ret = gst_pad_link(src_pad, q_pad);
         g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
 
         gst_object_unref(q_pad);
@@ -487,8 +486,8 @@ static void handle_media_stream(GstPad *src_pad, MyStreamClient *sc, const char 
             //       glsinkbin ! appsink in our pipeline_string for automatic linking, gst_parse will NOT like this,
             //       as glsinkbin (a sink) cannot link to anything upstream (appsink being 'another' sink). So we
             //       manually link them below using glsinkbin's 'sink' pad -> appsink.
-            sc->appsink = gst_element_factory_make("appsink", NULL);
-            g_object_set(sc->appsink,
+            sc->app_sink = gst_element_factory_make("appsink", NULL);
+            g_object_set(sc->app_sink,
                          // Set caps
                          "caps",
                          caps,
@@ -504,24 +503,27 @@ static void handle_media_stream(GstPad *src_pad, MyStreamClient *sc, const char 
             // Lower overhead than new-sample signal.
             GstAppSinkCallbacks callbacks = {};
             callbacks.new_sample = on_new_sample_cb;
-            gst_app_sink_set_callbacks(GST_APP_SINK(sc->appsink), &callbacks, sc, NULL);
+            gst_app_sink_set_callbacks(GST_APP_SINK(sc->app_sink), &callbacks, sc, NULL);
             sc->received_first_frame = false;
 
-            g_object_set(glsinkbin, "sink", sc->appsink, NULL);
+            g_object_set(glsinkbin, "sink", sc->app_sink, NULL);
         }
 
         gst_element_sync_state_with_parent(glsinkbin);
 #else
         GstElement *q = gst_element_factory_make("queue", NULL);
         g_assert_nonnull(q);
+
         GstElement *conv = gst_element_factory_make(convert_name, NULL);
         g_assert_nonnull(conv);
+
         GstElement *sink = gst_element_factory_make(sink_name, NULL);
         g_assert_nonnull(sink);
 
         GstElement *identity = gst_element_factory_make("identity", NULL);
         g_assert_nonnull(identity);
         g_object_set(identity, "signal-handoffs", TRUE, NULL);
+        g_signal_connect(identity, "handoff", G_CALLBACK(on_video_handoff), NULL);
 
         g_object_set(sink, "sync", FALSE, NULL);
 
@@ -532,23 +534,15 @@ static void handle_media_stream(GstPad *src_pad, MyStreamClient *sc, const char 
         gst_element_sync_state_with_parent(identity);
         gst_element_link_many(q, conv, identity, sink, NULL);
 
-        g_signal_connect(identity, "handoff", G_CALLBACK(on_video_handoff), NULL);
+        GstPad *q_pad = gst_element_get_static_pad(q, "sink");
 
-        GstPad *qpad = gst_element_get_static_pad(q, "sink");
-
-        GstPadLinkReturn ret = gst_pad_link(src_pad, qpad);
+        const GstPadLinkReturn ret = gst_pad_link(src_pad, q_pad);
         g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
 
-        gst_object_unref(qpad);
+        gst_object_unref(q_pad);
 #endif
     }
 }
-
-// static void process_candidate(guint mlineindex, const gchar *candidate) {
-//     g_print("Received ICE candidate: %d %s\n", mlineindex, candidate);
-//
-//     g_signal_emit_by_name(recv_state.webrtcbin, "add-ice-candidate", mlineindex, candidate);
-// }
 
 static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, MyStreamClient *sc) {
     // We don't care about sink pads
@@ -556,13 +550,13 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, MyStreamC
         return;
     }
 
-    GstCaps *caps = NULL;
+    const GstCaps *caps = NULL;
 
-    // For using decodebin
+    // When using decodebin
     if (gst_pad_has_current_caps(pad)) {
         caps = gst_pad_get_current_caps(pad);
     }
-    // For using decodebin3
+    // When using decodebin3
     else {
         gst_print("Pad '%s' has no caps, use gst_pad_get_stream to get caps\n", GST_PAD_NAME(pad));
 
@@ -655,7 +649,7 @@ static void on_webrtcbin_stats(GstPromise *promise, GstElement *user_data) {
     g_free(str);
 }
 
-static gboolean print_stats(MyStreamClient *sc) {
+static gboolean print_fec_stats(MyStreamClient *sc) {
     if (!sc) {
         return G_SOURCE_CONTINUE;
     }
@@ -877,7 +871,7 @@ static void on_drop_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc) {
         gst_element_set_state(sc->pipeline, GST_STATE_NULL);
     }
     gst_clear_object(&sc->pipeline);
-    gst_clear_object(&sc->appsink);
+    gst_clear_object(&sc->app_sink);
 }
 
 static void *my_stream_client_thread_func(void *ptr) {
@@ -916,8 +910,7 @@ void my_stream_client_destroy(MyStreamClient **ptr_sc) {
 void my_stream_client_spawn_thread(MyStreamClient *sc, MyConnection *connection) {
     ALOGI("%s: Starting stream client mainloop thread", __FUNCTION__);
     my_stream_client_set_connection(sc, connection);
-    int ret = os_thread_helper_start(&sc->play_thread, &my_stream_client_thread_func, sc);
-    (void)ret;
+    const int ret = os_thread_helper_start(&sc->play_thread, &my_stream_client_thread_func, sc);
     g_assert(ret == 0);
 }
 
@@ -931,7 +924,7 @@ void my_stream_client_stop(MyStreamClient *sc) {
         my_connection_disconnect(sc->connection);
     }
     gst_clear_object(&sc->pipeline);
-    gst_clear_object(&sc->appsink);
+    gst_clear_object(&sc->app_sink);
 #ifdef ANDROID
     gst_clear_object(&sc->context);
 #endif
@@ -939,7 +932,7 @@ void my_stream_client_stop(MyStreamClient *sc) {
 
 #ifdef ANDROID
 struct my_sample *my_stream_client_try_pull_sample(MyStreamClient *sc, struct timespec *out_decode_end) {
-    if (!sc->appsink) {
+    if (!sc->app_sink) {
         // Not setup yet.
         return NULL;
     }
@@ -956,7 +949,7 @@ struct my_sample *my_stream_client_try_pull_sample(MyStreamClient *sc, struct ti
     }
 
     if (sample == NULL) {
-        if (gst_app_sink_is_eos(GST_APP_SINK(sc->appsink))) {
+        if (gst_app_sink_is_eos(GST_APP_SINK(sc->app_sink))) {
             //            ALOGW("%s: EOS", __FUNCTION__);
             // TODO trigger teardown?
         }
@@ -991,7 +984,7 @@ struct my_sample *my_stream_client_try_pull_sample(MyStreamClient *sc, struct ti
     if (sc->context == NULL) {
         ALOGI("%s: Retrieving the GStreamer EGL context", __FUNCTION__);
         /* Get GStreamer's gl context. */
-        gst_gl_query_local_gl_context(sc->appsink, GST_PAD_SINK, &sc->context);
+        gst_gl_query_local_gl_context(sc->app_sink, GST_PAD_SINK, &sc->context);
 
         /* Check if we have 2D or OES textures */
         GstStructure *s = gst_caps_get_structure(caps, 0);
@@ -1040,6 +1033,6 @@ static void my_stream_client_set_connection(MyStreamClient *sc, MyConnection *co
         sc->connection = g_object_ref(connection);
         g_signal_connect(sc->connection, "on-need-pipeline", G_CALLBACK(on_need_pipeline_cb), sc);
         g_signal_connect(sc->connection, "on-drop-pipeline", G_CALLBACK(on_drop_pipeline_cb), sc);
-        ALOGI("%s: MyConnection assigned", __FUNCTION__);
+        ALOGI("%s: a connection assigned to the stream client", __FUNCTION__);
     }
 }
