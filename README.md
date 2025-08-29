@@ -1,6 +1,6 @@
 # GStreamer WebRTC Demo
 
-This is a demo showing how to use GStreamer WebRTC on Android/Linux/Windows.
+This is a demo showing how to use GStreamer WebRTC on Android/Linux/Windows. Internal audio capture on Android is also included.
 
 ## Get Dependencies (Linux)
 
@@ -53,3 +53,7 @@ from Cerbero), you will need to set one of these in `local.properties`:
   done a single-arch cerbero build in `~/src/cerbero`
 - `gstreamerBaseDir=/home/user/gstreamer_android_universal` - if you have a
   universal (all architectures) build like the one downloaded by the script.
+
+## Get Dependencies (Windows)
+
+Get GStreamer from https://gstreamer.freedesktop.org/download/#windows.
