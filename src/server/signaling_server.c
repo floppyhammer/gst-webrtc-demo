@@ -6,9 +6,7 @@
 #include <libsoup/soup-version.h>
 
 #if SOUP_CHECK_VERSION(3, 0, 0)
-
     #include <libsoup/soup-server-message.h>
-
 #endif
 
 #include "../utils/logger.h"
@@ -85,7 +83,7 @@ static void signaling_server_handle_message(SignalingServer *server,
         const gchar *msg_type = json_object_get_string_member(msg, "msg");
         if (g_str_equal(msg_type, "answer")) {
             const gchar *answer_sdp = json_object_get_string_member(msg, "sdp");
-            ALOGD("Received answer:\n %s", answer_sdp);
+            ALOGD("Received SDP answer: \n%s", answer_sdp);
 
             g_signal_emit(server, signals[SIGNAL_SDP_ANSWER], 0, connection, answer_sdp);
         } else if (g_str_equal(msg_type, "candidate")) {
@@ -126,7 +124,7 @@ static void message_cb(SoupWebsocketConnection *connection, gint type, GBytes *m
 static void signaling_server_remove_websocket_connection(SignalingServer *server, SoupWebsocketConnection *connection) {
     ALOGD("Removed websocket connection");
 
-    ClientId client_id = g_object_get_data(G_OBJECT(connection), "client_id");
+    const ClientId client_id = g_object_get_data(G_OBJECT(connection), "client_id");
 
     server->websocket_connections = g_slist_remove(server->websocket_connections, client_id);
 
@@ -212,7 +210,7 @@ static void signaling_server_send_to_websocket_client(SignalingServer *server, C
 }
 
 void signaling_server_send_sdp_offer(SignalingServer *server, const ClientId client_id, const gchar *sdp) {
-    ALOGD("Send SDP offer: %s", sdp);
+    ALOGD("Send SDP offer: \n%s", sdp);
 
     JsonBuilder *builder = json_builder_new();
     json_builder_begin_object(builder);

@@ -1,6 +1,6 @@
 #pragma once
 
-#define LOG_TAG "GstWebrtcServer"
+#define LOG_TAG "GstWebrtcDemo"
 
 #ifndef ALOGV
     #ifdef __ANDROID__

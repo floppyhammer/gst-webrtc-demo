@@ -63,6 +63,36 @@ static gboolean gst_bus_cb(GstBus* bus, GstMessage* message, gpointer user_data)
         case GST_MESSAGE_LATENCY: {
             gst_bin_recalculate_latency(pipeline);
         } break;
+        case GST_MESSAGE_QOS: {
+            const GstStructure* s = gst_message_get_structure(message);
+            const GValue* val = gst_structure_get_value(s, "avg-intra-downstream-bitrate");
+            if (val) {
+                const gdouble avg_intra_downstream_bitrate = g_value_get_double(val);
+                g_print("QoS message: Average Intra Downstream Bitrate = %f bps\n", avg_intra_downstream_bitrate);
+            }
+
+            val = gst_structure_get_value(s, "avg-downstream-bitrate");
+            if (val) {
+                const gdouble avg_downstream_bitrate = g_value_get_double(val);
+                g_print("QoS message: Average Downstream Bitrate = %f bps\n", avg_downstream_bitrate);
+
+                // This is where you implement your dynamic bitrate adjustment logic
+                // For example, if the average bitrate is too low, you might decrease the encoder bitrate
+                // The value "500000" is an example and should be adjusted to your needs
+                // if (avg_downstream_bitrate < 500000) {
+                // 	g_object_set(video_encoder, "bitrate", (gint)avg_downstream_bitrate * 0.8, NULL);
+                // 	g_print("Adjusting encoder bitrate to %d\n", (gint)avg_downstream_bitrate * 0.8);
+                // }
+            }
+
+            val = gst_structure_get_value(s, "rtt");
+            if (val) {
+            }
+
+            val = gst_structure_get_value(s, "jitter");
+            if (val) {
+            }
+        } break;
         default:
             break;
     }
@@ -445,7 +475,7 @@ void server_pipeline_play(struct MyGstData* mgd) {
     GThread* thread = g_thread_new("loop_thread", (GThreadFunc)loop_thread, NULL);
 }
 
-void server_stop(struct MyGstData* mgd) {
+void server_pipeline_stop(struct MyGstData* mgd) {
     ALOGI("Stopping pipeline");
 
     // Settle the pipeline.
@@ -566,7 +596,7 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
         "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! "
 #endif
         "encodebin2 "
-        "profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120,bitrate=8000\" ! "
+        "profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120,bitrate=16000\" ! "
         "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
         "tee name=%s allow-not-linked=true",
@@ -586,7 +616,11 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
     gst_object_unref(pad);
 
-    g_signal_connect(gst_bin_get_by_name(GST_BIN(pipeline), "identity"), "handoff", G_CALLBACK(on_handoff), NULL);
+    GstElement* iden = gst_bin_get_by_name(GST_BIN(pipeline), "identity");
+    if (iden) {
+        g_signal_connect(iden, "handoff", G_CALLBACK(on_handoff), NULL);
+        gst_object_unref(iden);
+    }
 
     GstBus* bus = gst_element_get_bus(pipeline);
     gst_bus_add_watch(bus, gst_bus_cb, mgd);

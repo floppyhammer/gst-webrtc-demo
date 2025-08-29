@@ -15,5 +15,5 @@ int main(int argc, char *argv[]) {
     g_main_loop_unref(loop);
 
     // Cleanup
-    server_stop(mgd);
+    server_pipeline_stop(mgd);
 }
