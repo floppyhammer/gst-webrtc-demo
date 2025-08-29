@@ -17,9 +17,14 @@ import androidx.core.content.ContextCompat
 class StreamingActivity : NativeActivity() {
     private lateinit var mediaProjectionManager: MediaProjectionManager
 
+    companion object {
+        private const val REQUEST_CODE_MEDIA_PROJECTION = 1001 // Or any other unique integer
+        private const val TAG = "StreamingActivity"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         System.loadLibrary("gst_webrtc_server_android")
-        Log.i("GstWebrtcServer", "StreamingActivity: loaded so")
+        Log.i(TAG, "StreamingActivity: loaded so")
 
         super.onCreate(savedInstanceState)
 
@@ -52,7 +57,7 @@ class StreamingActivity : NativeActivity() {
 
     // In StreamingActivity
     private fun startScreenCaptureService(resultCode: Int, data: Intent) {
-        Log.d("StreamingActivity", "Attempting to start ScreenCaptureService.")
+        Log.d(TAG, "Attempting to start ScreenCaptureService.")
 
         // 1. Create an Intent to start ScreenCaptureService
         val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
@@ -67,15 +72,15 @@ class StreamingActivity : NativeActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
-            Log.i("StreamingActivity", "Called startForegroundService for ScreenCaptureService.")
+            Log.i(TAG, "Called startForegroundService for ScreenCaptureService.")
         } else {
             startService(serviceIntent)
-            Log.i("StreamingActivity", "Called startService for ScreenCaptureService.")
+            Log.i(TAG, "Called startService for ScreenCaptureService.")
         }
 //        isServiceRunning = true
 
         Log.i(
-            "StreamingActivity",
+            TAG,
             "Call to start(Foreground)Service for ScreenCaptureService has been made with action: ${serviceIntent.action}"
         )
     }
@@ -89,16 +94,8 @@ class StreamingActivity : NativeActivity() {
 //        isServiceRunning = false
 
         Log.i(
-            "StreamingActivity",
+            TAG,
             "Stop command sent to ScreenCaptureService with action: ${serviceIntent.action}"
         )
-    }
-
-    companion object {
-        private const val REQUEST_CODE_MEDIA_PROJECTION = 1001 // Or any other unique integer
-
-        init {
-            Log.i("GstWebrtcServer", "StreamingActivity: In StreamingActivity static init")
-        }
     }
 }

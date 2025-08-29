@@ -40,6 +40,8 @@ class ScreenCaptureService : Service() {
 
         private const val NOTIFICATION_ID = 123
         private const val NOTIFICATION_CHANNEL_ID = "ScreenCaptureChannel"
+
+        private const val TAG = "ScreenCaptureService"
     }
 
     override fun onCreate() {
@@ -49,14 +51,14 @@ class ScreenCaptureService : Service() {
             getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         createNotificationChannel()
-        Log.d("ScreenCaptureService", "Service onCreate")
+        Log.d(TAG, "Service onCreate")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("ScreenCaptureService", "onStartCommand: ${intent?.action}")
+        Log.d(TAG, "onStartCommand: ${intent?.action}")
         if (intent == null) {
             Log.w(
-                "ScreenCaptureService",
+                TAG,
                 "Intent is null in onStartCommand, stopping service to be safe."
             )
             stopSelf()
@@ -80,18 +82,18 @@ class ScreenCaptureService : Service() {
 
                         if (mediaProjection != null) {
                             Log.i(
-                                "ScreenCaptureService",
+                                TAG,
                                 "MediaProjection obtained. Starting audio recording."
                             )
                             startAudioRecording()
                         } else {
-                            Log.e("ScreenCaptureService", "Failed to get MediaProjection.")
+                            Log.e(TAG, "Failed to get MediaProjection.")
                             stopSelf()
                             return START_NOT_STICKY
                         }
                     } catch (e: Exception) {
                         Log.e(
-                            "ScreenCaptureService",
+                            TAG,
                             "Error obtaining MediaProjection or starting recording",
                             e
                         )
@@ -100,7 +102,7 @@ class ScreenCaptureService : Service() {
                     }
                 } else {
                     Log.e(
-                        "ScreenCaptureService",
+                        TAG,
                         "Result code not OK or data is null. Cannot start capture."
                     )
                     stopSelf() // Stop if we can't initialize
@@ -109,12 +111,12 @@ class ScreenCaptureService : Service() {
             }
 
             ACTION_STOP -> {
-                Log.d("ScreenCaptureService", "Action stop received")
+                Log.d(TAG, "Action stop received")
                 stopCaptureAndService()
             }
 
             else -> {
-                Log.w("ScreenCaptureService", "Unknown action: ${intent.action}")
+                Log.w(TAG, "Unknown action: ${intent.action}")
                 stopSelf() // Stop if action is unknown
             }
         }
@@ -134,9 +136,9 @@ class ScreenCaptureService : Service() {
                     0 // Type 0 for versions below Q, as it's not explicitly set this way
                 }
             )
-            Log.i("ScreenCaptureService", "Service started in foreground.")
+            Log.i(TAG, "Service started in foreground.")
         } catch (e: Exception) {
-            Log.e("ScreenCaptureService", "Error starting foreground service", e)
+            Log.e(TAG, "Error starting foreground service", e)
             // This can happen if the foregroundServiceType in the manifest doesn't match,
             // or if the specific FGS permission is missing on Android 14+.
             stopSelf() // Stop the service if it cannot start in foreground
@@ -195,11 +197,11 @@ class ScreenCaptureService : Service() {
 
     private fun startAudioRecording() {
         if (mediaProjection == null) {
-            Log.e("ScreenCaptureService", "MediaProjection is null. Cannot start audio recording.")
+            Log.e(TAG, "MediaProjection is null. Cannot start audio recording.")
             stopSelf()
             return
         }
-        Log.d("ScreenCaptureService", "Attempting to start audio recording.")
+        Log.d(TAG, "Attempting to start audio recording.")
 
         val config = AudioPlaybackCaptureConfiguration.Builder(mediaProjection!!)
             .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
@@ -218,7 +220,7 @@ class ScreenCaptureService : Service() {
         )
 
         if (bufferSizeInBytes == AudioRecord.ERROR_BAD_VALUE || bufferSizeInBytes == AudioRecord.ERROR) {
-            Log.e("ScreenCaptureService", "Invalid buffer size for AudioRecord.")
+            Log.e(TAG, "Invalid buffer size for AudioRecord.")
             stopSelf()
             return
         }
@@ -231,7 +233,7 @@ class ScreenCaptureService : Service() {
                 .build()
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e("ScreenCaptureService", "AudioRecord failed to initialize.")
+                Log.e(TAG, "AudioRecord failed to initialize.")
                 audioRecord?.release()
                 audioRecord = null
                 stopSelf()
@@ -240,7 +242,7 @@ class ScreenCaptureService : Service() {
 
             audioRecord?.startRecording()
             isRecording = true
-            Log.i("ScreenCaptureService", "Audio recording started successfully.")
+            Log.i(TAG, "Audio recording started successfully.")
 
             recordingExecutor.execute {
                 val audioBuffer = ByteArray(bufferSizeInBytes)
@@ -252,7 +254,7 @@ class ScreenCaptureService : Service() {
                             nativeProcessAudio(audioBuffer, readResult, System.nanoTime())
                         } catch (e: UnsatisfiedLinkError) {
                             Log.e(
-                                "ScreenCaptureService",
+                                TAG,
                                 "Native method error: ${e.message}. Is library loaded?"
                             )
                             // Potentially stop recording if native part is critical
@@ -260,40 +262,40 @@ class ScreenCaptureService : Service() {
                         }
                     } else if (readResult != null && readResult < 0) {
                         Log.w(
-                            "ScreenCaptureService",
+                            TAG,
                             "AudioRecord read error: $readResult. Stopping recording."
                         )
                         isRecording = false // Stop loop on read error
                     } else if (audioRecord == null || !isRecording) {
                         Log.i(
-                            "ScreenCaptureService",
+                            TAG,
                             "AudioRecord became null or no longer recording, exiting loop."
                         )
                         break
                     }
                 }
-                Log.i("ScreenCaptureService", "Audio recording thread stopped.")
+                Log.i(TAG, "Audio recording thread stopped.")
                 // Clean up AudioRecord here if the loop exits and isRecording is false
                 if (!isRecording) {
                     audioRecord?.stop()
                     audioRecord?.release()
                     audioRecord = null
                     Log.i(
-                        "ScreenCaptureService",
+                        TAG,
                         "AudioRecord stopped and released after loop exit."
                     )
                 }
             }
         } catch (se: SecurityException) {
             Log.e(
-                "ScreenCaptureService",
+                TAG,
                 "SecurityException during AudioRecord setup or start: ${se.message}",
                 se
             )
             stopSelf() // Stop service if audio recording can't start due to security
         } catch (e: Exception) {
             Log.e(
-                "ScreenCaptureService",
+                TAG,
                 "Exception during audio recording setup or start: ${e.message}",
                 e
             )
@@ -302,7 +304,7 @@ class ScreenCaptureService : Service() {
     }
 
     private fun stopCaptureAndService() {
-        Log.d("ScreenCaptureService", "Stopping capture and service.")
+        Log.d(TAG, "Stopping capture and service.")
         isRecording = false // Signal recording thread to stop
 
         // Give the recording thread a moment to finish, then release resources
@@ -312,28 +314,28 @@ class ScreenCaptureService : Service() {
             }
             audioRecord?.release()
             audioRecord = null
-            Log.i("ScreenCaptureService", "AudioRecord released in stopCaptureAndService.")
+            Log.i(TAG, "AudioRecord released in stopCaptureAndService.")
 
             mediaProjection?.stop()
             mediaProjection = null
-            Log.i("ScreenCaptureService", "MediaProjection stopped in stopCaptureAndService.")
+            Log.i(TAG, "MediaProjection stopped in stopCaptureAndService.")
 
             // Ensure this runs on the main thread if it modifies UI or interacts with other main thread components
             // For stopping service, it's fine from here.
             stopForeground(true) // true to remove notification
             stopSelf() // Stop the service itself
-            Log.i("ScreenCaptureService", "Service stopped.")
+            Log.i(TAG, "Service stopped.")
         }
         // Consider shutting down the executor if the service is truly done
         // recordingExecutor.shutdown()
     }
 
     override fun onDestroy() {
-        Log.d("ScreenCaptureService", "Service onDestroy. Cleaning up.")
+        Log.d(TAG, "Service onDestroy. Cleaning up.")
         // Ensure cleanup, although stopCaptureAndService should handle most of it.
         if (isRecording || audioRecord != null || mediaProjection != null) {
             Log.w(
-                "ScreenCaptureService",
+                TAG,
                 "onDestroy called but resources might still be active. Forcing cleanup."
             )
             stopCaptureAndService() // Last chance cleanup
