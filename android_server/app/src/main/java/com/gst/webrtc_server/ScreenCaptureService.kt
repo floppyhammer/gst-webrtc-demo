@@ -208,7 +208,7 @@ class ScreenCaptureService : Service() {
         val audioFormat = AudioFormat.Builder()
             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
             .setSampleRate(44100)
-            .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
+            .setChannelMask(AudioFormat.CHANNEL_IN_STEREO)
             .build()
 
         val bufferSizeInBytes = AudioRecord.getMinBufferSize(

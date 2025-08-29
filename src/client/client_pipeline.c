@@ -193,11 +193,12 @@ static void on_video_handoff(GstElement *identity, GstBuffer *buffer, gpointer u
 }
 
 static void on_audio_handoff(GstElement *identity, GstBuffer *buffer, gpointer user_data) {
-    GstClockTime pts = GST_BUFFER_PTS(buffer);
-    GstClockTime duration = GST_BUFFER_DURATION(buffer);
-    g_print("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
-            GST_TIME_ARGS(pts),
-            GST_TIME_ARGS(duration));
+    const GstClockTime pts = GST_BUFFER_PTS(buffer);
+    const GstClockTime duration = GST_BUFFER_DURATION(buffer);
+
+    // g_print("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
+    //         GST_TIME_ARGS(pts),
+    //         GST_TIME_ARGS(duration));
 }
 
 /// Handle incoming media stream

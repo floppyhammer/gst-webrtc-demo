@@ -541,7 +541,7 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
         // "openslessrc ! "
         // "audiotestsrc is-live=true wave=red-noise ! "
         "appsrc name=audiosrc format=GST_FORMAT_TIME is-live=true ! "
-        "audio/x-raw,format=S16LE,layout=interleaved,rate=44100,channels=1 ! "
+        "audio/x-raw,format=S16LE,layout=interleaved,rate=44100,channels=2 ! "
 #endif
         "audioconvert ! "
         "audioresample ! "
@@ -596,44 +596,51 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     *out_mgd = mgd;
 }
 
-void server_pipeline_push_pcm(struct MyGstData* mgd, void* audio_bytes, int size) {
+void server_pipeline_push_pcm(struct MyGstData* mgd, const void* audio_bytes, int size) {
     if (!mgd) {
+        ALOGW("MyGstData is null");
+        return;
+    }
+
+    if (size < 1 || !audio_bytes) {
+        ALOGW("Invalid audio data");
         return;
     }
 
     GstElement* audio_app_src = gst_bin_get_by_name(GST_BIN(mgd->pipeline), "audiosrc");
+    if (!audio_app_src) {
+        ALOGE("GStreamer audio_app_src is null");
+        return;
+    }
 
-    if (audio_app_src) {
-        GstBuffer* buffer = gst_buffer_new_allocate(NULL, size, NULL);
-        if (buffer) {
-            gst_buffer_fill(buffer, 0, audio_bytes, size);
+    GstBuffer* buffer = gst_buffer_new_allocate(NULL, size, NULL);
+    if (buffer) {
+        gst_buffer_fill(buffer, 0, audio_bytes, size);
 
-            // Set presentation timestamp (PTS) and duration if known/needed
-            GstClock* clock = gst_element_get_clock(mgd->pipeline);
-            const GstClockTime current_time = gst_clock_get_time(clock);
-            GstClockTime base_time = gst_element_get_base_time(mgd->pipeline);
-            GstClockTime running_time = current_time - base_time;
+        // Set presentation timestamp (PTS) and duration if known/needed
+        GstClock* clock = gst_element_get_clock(mgd->pipeline);
+        const GstClockTime current_time = gst_clock_get_time(clock);
+        const GstClockTime base_time = gst_element_get_base_time(mgd->pipeline);
+        const GstClockTime running_time = current_time - base_time;
 
-            // For 16-bit mono at 44.1kHz
-            const GstClockTime duration = gst_util_uint64_scale_int(size / 2, GST_SECOND, 44100);
+        // For 16-bit stereo at 44.1kHz
+        const int channels = 2;
+        const GstClockTime duration = gst_util_uint64_scale_int(size / (2 * channels), GST_SECOND, 44100);
 
-            // Ensure timestamp units match GStreamer expectations
-            GST_BUFFER_PTS(buffer) = running_time;
-            GST_BUFFER_DURATION(buffer) = duration;
+        // Ensure timestamp units match GStreamer expectations
+        GST_BUFFER_PTS(buffer) = running_time;
+        GST_BUFFER_DURATION(buffer) = duration;
 
-            ALOGE("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
-                  GST_TIME_ARGS(running_time),
-                  GST_TIME_ARGS(duration));
+        //        ALOGI("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
+        //              GST_TIME_ARGS(running_time),
+        //              GST_TIME_ARGS(duration));
 
-            GstFlowReturn ret = gst_app_src_push_buffer(GST_APP_SRC(audio_app_src), buffer);
-            if (ret != GST_FLOW_OK) {
-                ALOGW("Error pushing GStreamer buffer: %d", ret);
-            }
-        } else {
-            ALOGE("Failed to allocate GStreamer buffer.");
+        GstFlowReturn ret = gst_app_src_push_buffer(GST_APP_SRC(audio_app_src), buffer);
+        if (ret != GST_FLOW_OK) {
+            ALOGW("Error pushing GStreamer buffer: %d", ret);
         }
     } else {
-        ALOGW("GStreamer audio_app_src is null.");
+        ALOGE("Failed to allocate GStreamer buffer.");
     }
 
     gst_object_unref(audio_app_src);
