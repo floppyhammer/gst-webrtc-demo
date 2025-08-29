@@ -1,26 +1,18 @@
 package com.gst.webrtc_server
 
 import android.Manifest
-import android.app.Activity
-import org.freedesktop.gstreamer.GStreamer
 
 import android.app.NativeActivity
-import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioPlaybackCaptureConfiguration
-import android.media.AudioRecord
-import android.media.projection.MediaProjection
+import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
-import android.os.PersistableBundle
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresPermission
-import androidx.core.content.getSystemService
-import java.util.concurrent.Executors
+import androidx.core.content.ContextCompat
+
 
 class StreamingActivity : NativeActivity() {
     private lateinit var mediaProjectionManager: MediaProjectionManager
@@ -38,9 +30,16 @@ class StreamingActivity : NativeActivity() {
     }
 
     private fun startInternalAudioCapture() {
-        // Bring up the ScreenCapture prompt
-        val captureIntent = mediaProjectionManager.createScreenCaptureIntent()
-        startActivityForResult(captureIntent, REQUEST_CODE_MEDIA_PROJECTION)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            // Bring up the ScreenCapture prompt
+            val captureIntent = mediaProjectionManager.createScreenCaptureIntent()
+            startActivityForResult(captureIntent, REQUEST_CODE_MEDIA_PROJECTION)
+        } else {
+            Toast.makeText(this, "Required RECORD_AUDIO permission not granted", Toast.LENGTH_SHORT)
+                .show()
+        }
     }
 
     @RequiresPermission(Manifest.permission.RECORD_AUDIO)
