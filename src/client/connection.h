@@ -43,20 +43,20 @@ void em_connection_connect(EmConnection *emconn);
  *
  * @memberof EmConnection
  */
-void em_connection_disconnect(EmConnection *emconn);
+void em_connection_disconnect(EmConnection *conn);
 
 /*!
- * Send a message to the server
+ * Send a message to the server over data channel
  *
  * @memberof EmConnection
  */
-bool em_connection_send_bytes(EmConnection *emconn, GBytes *bytes);
+bool em_connection_send_bytes(EmConnection *conn, GBytes *bytes);
 
 /*!
  * Assign a pipeline for use.
  *
  * Will be started when the websocket connection comes up in order to negotiate using the webrtcbin.
  */
-void em_connection_set_pipeline(EmConnection *emconn, GstPipeline *pipeline);
+void em_connection_set_pipeline(EmConnection *conn, GstPipeline *pipeline);
 
 G_END_DECLS

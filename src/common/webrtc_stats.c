@@ -154,3 +154,66 @@ GString *webrtc_stats_get_json(const GstStructure *stats) {
 
     return json_str;
 }
+
+// static void on_webrtcbin_stats(GstPromise *promise, GstElement *user_data) {
+//     const GstStructure *reply = gst_promise_get_reply(promise);
+//
+//     GString *json = webrtc_stats_get_json(reply);
+//     // ALOGD("webrtcbin stats: %s", json->str);
+//     g_string_free(json, TRUE);
+// }
+//
+// static gboolean print_webrtc_stats() {
+//     if (!recv_state.webrtcbin) {
+//         return G_SOURCE_CONTINUE;
+//     }
+//
+//     GstPromise *promise = gst_promise_new_with_change_func((GstPromiseChangeFunc)on_webrtcbin_stats, NULL, NULL);
+//     g_signal_emit_by_name(recv_state.webrtcbin, "get-stats", NULL, promise);
+//
+//     // Show FEC stats
+//     if (0) {
+//         for (int i = 0; i < 2; i++) {
+//             gchar *name;
+//             if (i == 0) {
+//                 name = "rtpulpfecdec0";
+//             } else {
+//                 name = "rtpulpfecdec1";
+//             }
+//
+//             GstElement *rtpulpfecdec = find_element_by_name(GST_BIN(recv_state.webrtcbin), name);
+//
+//             if (rtpulpfecdec) {
+//                 GValue pt = G_VALUE_INIT;
+//                 GValue recovered = G_VALUE_INIT;
+//                 GValue unrecovered = G_VALUE_INIT;
+//
+//                 g_object_get_property(G_OBJECT(rtpulpfecdec), "pt", &pt);
+//                 g_object_get_property(G_OBJECT(rtpulpfecdec), "recovered", &recovered);
+//                 g_object_get_property(G_OBJECT(rtpulpfecdec), "unrecovered", &unrecovered);
+//
+//                 g_print("FEC stats: pt %u, recovered %u, unrecovered %u\n",
+//                         g_value_get_uint(&pt),
+//                         g_value_get_uint(&recovered),
+//                         g_value_get_uint(&unrecovered));
+//
+//                 g_value_unset(&pt);
+//                 g_value_unset(&recovered);
+//                 g_value_unset(&unrecovered);
+//             }
+//         }
+//     }
+//
+//     return G_SOURCE_CONTINUE;
+// }
+//
+// static gboolean check_pipeline_dot_data() {
+//     if (!recv_state.pipeline) {
+//         return G_SOURCE_CONTINUE;
+//     }
+//
+//     gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(recv_state.pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+//     g_free(dot_data);
+//
+//     return G_SOURCE_CONTINUE;
+// }

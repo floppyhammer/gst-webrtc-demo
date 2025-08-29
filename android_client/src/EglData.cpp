@@ -12,8 +12,8 @@
 
 #include <stdexcept>
 
-#include "webrtc/app_log.h"
-#include "webrtc/render/GLError.h"
+#include "../../src/utils/logger.h"
+#include "render/GLError.h"
 
 EglData::EglData(ANativeWindow *window) {
     display = eglGetDisplay(EGL_DEFAULT_DISPLAY);

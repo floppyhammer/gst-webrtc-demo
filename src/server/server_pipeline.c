@@ -445,7 +445,7 @@ void server_pipeline_play(struct MyGstData* mgd) {
     GThread* thread = g_thread_new("loop_thread", (GThreadFunc)loop_thread, NULL);
 }
 
-void server_pipeline_stop(struct MyGstData* mgd) {
+void server_stop(struct MyGstData* mgd) {
     ALOGI("Stopping pipeline");
 
     // Settle the pipeline.
@@ -560,6 +560,11 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
         "queue name=q1 ! "
         "videoconvert ! "
         "timeoverlay ! "
+#ifndef ANDROID
+        // FIXME: this autovideosink is added to fix stream arriving super late on native platforms
+        // Local display sink for latency comparison
+        "tee name=testlocalsink ! videoconvert ! autovideosink testlocalsink. ! "
+#endif
         "encodebin2 "
         "profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120,bitrate=8000\" ! "
         "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "

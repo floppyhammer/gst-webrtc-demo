@@ -15,8 +15,6 @@
 
 #include <cassert>
 
-#include "../app_log.h"
-
 GLSwapchain::~GLSwapchain() {
     reset();
 }
@@ -50,11 +48,11 @@ GLSwapchain::~GLSwapchain() {
 //	glGenFramebuffers(n, framebuffers_.data());
 //
 ////            // Allocate and initialize the buffer of image structs (must be sequential in memory for
-///xrEnumerateSwapchainImages). /            // Return back an array of pointers to each swapchain image struct so the
-///consumer doesn't need to know the type/size. /            std::vector<XrSwapchainImageOpenGLESKHR>
-///swapchainImageBuffer(countOutput, {XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR}); /
-///std::vector<XrSwapchainImageBaseHeader*> swapchainImageBase; /            for (XrSwapchainImageOpenGLESKHR& image :
-///swapchainImageBuffer) { / swapchainImageBase.push_back(reinterpret_cast<XrSwapchainImageBaseHeader*>(&image)); / }
+/// xrEnumerateSwapchainImages). /            // Return back an array of pointers to each swapchain image struct so the
+/// consumer doesn't need to know the type/size. /            std::vector<XrSwapchainImageOpenGLESKHR>
+/// swapchainImageBuffer(countOutput, {XR_TYPE_SWAPCHAIN_IMAGE_OPENGL_ES_KHR}); /
+/// std::vector<XrSwapchainImageBaseHeader*> swapchainImageBase; /            for (XrSwapchainImageOpenGLESKHR& image :
+/// swapchainImageBuffer) { / swapchainImageBase.push_back(reinterpret_cast<XrSwapchainImageBaseHeader*>(&image)); / }
 //
 //	bool success = true;
 //	for (GLsizei i = 0; i < n; ++i) {

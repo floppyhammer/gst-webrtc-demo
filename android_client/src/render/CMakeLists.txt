@@ -3,16 +3,14 @@
 # SPDX-License-Identifier: BSL-1.0
 
 add_library(
-        gst_webrtc_client SHARED
-        connection.c
-        stream_client.c
-        render/GLDebug.cpp
-        render/GLError.cpp
-        render/GLSwapchain.cpp
-        render/render.cpp
+        gst_webrtc_render SHARED
+        GLDebug.cpp
+        GLError.cpp
+        GLSwapchain.cpp
+        render.cpp
 )
 target_link_libraries(
-        gst_webrtc_client
+        gst_webrtc_render
         PRIVATE ${ANDROID_LOG_LIBRARY}
         PUBLIC
         EGL::EGL
@@ -20,11 +18,11 @@ target_link_libraries(
         gstreamer_android
 )
 target_compile_definitions(
-        gst_webrtc_client PUBLIC XR_USE_PLATFORM_ANDROID XR_USE_GRAPHICS_API_OPENGL_ES
+        gst_webrtc_render PUBLIC XR_USE_PLATFORM_ANDROID XR_USE_GRAPHICS_API_OPENGL_ES
         XR_USE_TIMESPEC
 )
 target_include_directories(
-        gst_webrtc_client
+        gst_webrtc_render
         PRIVATE ${LIBSOUP_INCLUDE_DIRS} ${JSONGLIB_INCLUDE_DIRS} ${GIO_INCLUDE_DIRS}
         PUBLIC .. ${GST_INCLUDE_DIRS} ${GLIB_INCLUDE_DIRS}
 )

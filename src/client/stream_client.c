@@ -11,8 +11,11 @@
 #include "stream_client.h"
 
 #include <gst/app/gstappsink.h>
-#include <gst/gl/gl.h>
-#include <gst/gl/gstglsyncmeta.h>
+#ifdef ANDROID
+
+    #include <gst/gl/gl.h>
+    #include <gst/gl/gstglsyncmeta.h>
+#endif
 #include <gst/gst.h>
 #include <gst/gstbus.h>
 #include <gst/gstelement.h>
@@ -22,26 +25,25 @@
 #include <gst/gstutils.h>
 #include <gst/video/video-frame.h>
 #include <gst/webrtc/webrtc.h>
-
-#include "app_log.h"
-#include "connection.h"
-#include "gst_common.h" // for em_sample
-
-// clang-format off
-#include <EGL/egl.h>
-#include <GLES2/gl2ext.h>
-// clang-format on
-
-#include <linux/time.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include "../utils/logger.h"
+#include "connection.h"
+#include "gst_common.h" // for em_sample
+
+#ifdef ANDROID
+    #include <EGL/egl.h>
+    #include <GLES2/gl2ext.h>
+#endif
+#ifdef ANDROID
 struct em_sc_sample {
     struct em_sample base;
     GstSample *sample;
 };
+#endif
 
 /*!
  * All in one helper that handles locking, waiting for change and starting a
@@ -127,6 +129,8 @@ struct _EmStreamClient {
     GMainLoop *loop;
     EmConnection *connection;
     GstElement *pipeline;
+
+#ifdef ANDROID
     GstGLDisplay *gst_gl_display;
     GstGLContext *gst_gl_context;
     GstGLContext *gst_gl_other_context;
@@ -139,21 +143,24 @@ struct _EmStreamClient {
     /// GStreamer-created EGL context for its own use
     GstGLContext *context;
 
-    GstElement *appsink;
-
-    GLenum frame_texture_target;
-    GLenum texture_target;
-    GLuint texture_id;
-
-    int width;
-    int height;
-
     struct {
         EGLDisplay display;
         EGLContext android_main_context;
         // 16x16 pbuffer surface
         EGLSurface surface;
     } egl;
+#endif
+
+    GstElement *appsink;
+
+#ifdef ANDROID
+    GLenum frame_texture_target;
+    GLenum texture_target;
+    GLuint texture_id;
+#endif
+
+    int width;
+    int height;
 
     struct os_thread_helper play_thread;
 
@@ -205,6 +212,7 @@ static void em_stream_client_init(EmStreamClient *sc) {
     ALOGI("%s: done creating stuff", __FUNCTION__);
 }
 
+#ifdef ANDROID
 void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EGLDisplay display, EGLSurface surface) {
     ALOGI("Wrapping egl context");
 
@@ -219,6 +227,7 @@ void em_stream_client_set_egl_context(EmStreamClient *sc, EGLContext context, EG
     sc->android_main_context = g_object_ref_sink(
         gst_gl_context_new_wrapped(sc->gst_gl_display, android_main_egl_context_handle, egl_platform, gl_api));
 }
+#endif
 
 static void em_stream_client_dispose(EmStreamClient *self) {
     // May be called multiple times during destruction.
@@ -229,11 +238,13 @@ static void em_stream_client_dispose(EmStreamClient *self) {
     g_clear_object(&self->connection);
     gst_clear_object(&self->sample);
     gst_clear_object(&self->pipeline);
+#ifdef ANDROID
     gst_clear_object(&self->gst_gl_display);
     gst_clear_object(&self->gst_gl_context);
     gst_clear_object(&self->gst_gl_other_context);
     gst_clear_object(&self->display);
     gst_clear_object(&self->context);
+#endif
     gst_clear_object(&self->appsink);
 }
 
@@ -245,6 +256,7 @@ static void em_stream_client_finalize(EmStreamClient *self) {
  * Callbacks
  */
 
+#ifdef ANDROID
 static GstBusSyncReply bus_sync_handler_cb(GstBus *bus, GstMessage *msg, EmStreamClient *sc) {
     /* Do not let GstGL retrieve the display handle on its own
      * because then it believes it owns it and calls eglTerminate()
@@ -268,6 +280,7 @@ static GstBusSyncReply bus_sync_handler_cb(GstBus *bus, GstMessage *msg, EmStrea
 
     return GST_BUS_PASS;
 }
+#endif
 
 static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data) {
     GstBin *pipeline = GST_BIN(user_data);
@@ -304,6 +317,7 @@ static gboolean gst_bus_cb(GstBus *bus, GstMessage *message, gpointer user_data)
     return TRUE;
 }
 
+#ifdef ANDROID
 static GstFlowReturn on_new_sample_cb(GstAppSink *appsink, gpointer user_data) {
     EmStreamClient *sc = (EmStreamClient *)user_data;
 
@@ -337,6 +351,7 @@ static GstFlowReturn on_new_sample_cb(GstAppSink *appsink, gpointer user_data) {
 
     return GST_FLOW_OK;
 }
+#endif
 
 static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
     if (info->type & GST_PAD_PROBE_TYPE_BUFFER) {
@@ -390,35 +405,71 @@ static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *tran
     g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
 }
 
+// This is the gstwebrtc entry point where we create the offer and so on.
+// It will be called when the pipeline goes to PLAYING.
+static void on_negotiation_needed(GstElement *element, gpointer user_data) {
+    // Pass
+}
+
+static void on_video_handoff(GstElement *identity, GstBuffer *buffer, gpointer user_data) {
+    GstClockTime pts = GST_BUFFER_PTS(buffer);
+    GstClockTime dts = GST_BUFFER_DTS(buffer);
+    // g_print("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
+}
+
+static void on_audio_handoff(GstElement *identity, GstBuffer *buffer, gpointer user_data) {
+    const GstClockTime pts = GST_BUFFER_PTS(buffer);
+    const GstClockTime duration = GST_BUFFER_DURATION(buffer);
+
+    g_print("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
+            GST_TIME_ARGS(pts),
+            GST_TIME_ARGS(duration));
+}
+
 static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char *convert_name, const char *sink_name) {
     gst_println("Trying to handle stream with %s ! %s", convert_name, sink_name);
 
+    // Audio
     if (g_strcmp0(convert_name, "audioconvert") == 0) {
         GstElement *q = gst_element_factory_make("queue", NULL);
         g_assert_nonnull(q);
+
         GstElement *conv = gst_element_factory_make(convert_name, NULL);
         g_assert_nonnull(conv);
+
         GstElement *sink = gst_element_factory_make(sink_name, NULL);
         g_assert_nonnull(sink);
+
+        GstElement *identity = gst_element_factory_make("identity", NULL);
+        g_assert_nonnull(identity);
+        g_object_set(identity, "signal-handoffs", TRUE, NULL);
 
         /* Might also need to resample, so add it just in case.
          * Will be a no-op if it's not required. */
         GstElement *resample = gst_element_factory_make("audioresample", NULL);
         g_assert_nonnull(resample);
-        gst_bin_add_many(GST_BIN(sc->pipeline), q, conv, resample, sink, NULL);
+
+        gst_bin_add_many(GST_BIN(sc->pipeline), q, conv, resample, sink, identity, NULL);
+
         gst_element_sync_state_with_parent(q);
         gst_element_sync_state_with_parent(conv);
         gst_element_sync_state_with_parent(resample);
         gst_element_sync_state_with_parent(sink);
-        gst_element_link_many(q, conv, resample, sink, NULL);
+        gst_element_sync_state_with_parent(identity);
+        gst_element_link_many(q, conv, identity, resample, sink, NULL);
 
-        GstPad *qpad = gst_element_get_static_pad(q, "sink");
+        g_signal_connect(identity, "handoff", G_CALLBACK(on_audio_handoff), NULL);
 
-        GstPadLinkReturn ret = gst_pad_link(src_pad, qpad);
+        GstPad *q_pad = gst_element_get_static_pad(q, "sink");
+
+        GstPadLinkReturn ret = gst_pad_link(src_pad, q_pad);
         g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
 
-        gst_object_unref(qpad);
-    } else {
+        gst_object_unref(q_pad);
+    }
+    // Video
+    else {
+#ifdef ANDROID
         GstElement *glsinkbin = gst_element_factory_make("glsinkbin", NULL);
 
         // Disable clock sync to reduce latency
@@ -470,8 +521,44 @@ static void handle_media_stream(GstPad *src_pad, EmStreamClient *sc, const char 
         }
 
         gst_element_sync_state_with_parent(glsinkbin);
+#else
+        GstElement *q = gst_element_factory_make("queue", NULL);
+        g_assert_nonnull(q);
+        GstElement *conv = gst_element_factory_make(convert_name, NULL);
+        g_assert_nonnull(conv);
+        GstElement *sink = gst_element_factory_make(sink_name, NULL);
+        g_assert_nonnull(sink);
+
+        GstElement *identity = gst_element_factory_make("identity", NULL);
+        g_assert_nonnull(identity);
+        g_object_set(identity, "signal-handoffs", TRUE, NULL);
+
+        g_object_set(sink, "sync", FALSE, NULL);
+
+        gst_bin_add_many(GST_BIN(sc->pipeline), q, conv, sink, identity, NULL);
+        gst_element_sync_state_with_parent(q);
+        gst_element_sync_state_with_parent(conv);
+        gst_element_sync_state_with_parent(sink);
+        gst_element_sync_state_with_parent(identity);
+        gst_element_link_many(q, conv, identity, sink, NULL);
+
+        g_signal_connect(identity, "handoff", G_CALLBACK(on_video_handoff), NULL);
+
+        GstPad *qpad = gst_element_get_static_pad(q, "sink");
+
+        GstPadLinkReturn ret = gst_pad_link(src_pad, qpad);
+        g_assert_cmphex(ret, ==, GST_PAD_LINK_OK);
+
+        gst_object_unref(qpad);
+#endif
     }
 }
+
+// static void process_candidate(guint mlineindex, const gchar *candidate) {
+//     g_print("Received ICE candidate: %d %s\n", mlineindex, candidate);
+//
+//     g_signal_emit_by_name(recv_state.webrtcbin, "add-ice-candidate", mlineindex, candidate);
+// }
 
 static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, EmStreamClient *sc) {
     // We don't care about sink pads
@@ -503,7 +590,8 @@ static void on_decodebin_pad_added(GstElement *decodebin, GstPad *pad, EmStreamC
     if (g_str_has_prefix(name, "video")) {
         handle_media_stream(pad, sc, "videoconvert", "autovideosink");
     } else if (g_str_has_prefix(name, "audio")) {
-        handle_media_stream(pad, sc, "audioconvert", "openslessink");
+        gst_printerr("We should not use decodebin3 to handle audio");
+        abort();
     } else {
         gst_printerr("Unknown pad %s, ignoring", GST_PAD_NAME(pad));
     }
@@ -664,21 +752,25 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, EmStreamC
         gst_object_unref(sink_pad);
 
         GstElement *opusdec = gst_element_factory_make("opusdec", NULL);
-
-        // Not triggered
-        //        g_signal_connect(opusdec, "pad-added", G_CALLBACK(on_decodebin_pad_added), sc);
         gst_bin_add(GST_BIN(sc->pipeline), opusdec);
 
         gst_element_link(depay, opusdec);
 
         GstPad *src_pad = gst_element_get_static_pad(opusdec, "src");
-        handle_media_stream(src_pad, sc, "audioconvert", "openslessink");
+
+#ifdef ANDROID
+        const char *sink_name = "openslessink";
+#else
+        const char *sink_name = "autoaudiosink";
+#endif
+
+        handle_media_stream(src_pad, sc, "audioconvert", sink_name);
 
         gst_element_sync_state_with_parent(depay);
         gst_element_sync_state_with_parent(opusdec);
     } else {
         // Check webrtcbin output
-        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
+        // gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
 
         GstElement *decodebin = gst_element_factory_make("decodebin3", NULL);
 
@@ -757,20 +849,31 @@ static void on_need_pipeline_cb(EmConnection *em_conn, EmStreamClient *sc) {
     GstElement *webrtcbin = gst_element_factory_make("webrtcbin", "webrtc");
     // Matching this to the offerer's bundle policy is necessary for negotiation
     g_object_set(webrtcbin, "bundle-policy", GST_WEBRTC_BUNDLE_POLICY_MAX_BUNDLE, NULL);
-    g_object_set(webrtcbin, "latency", 5, NULL);
+    g_object_set(webrtcbin, "latency", 50, NULL);
+
+    // Connect callbacks on webrtcbin
+    // g_signal_connect(webrtcbin, "on-negotiation-needed", G_CALLBACK(on_negotiation_needed), NULL);
+    // g_signal_connect(webrtcbin, "on-data-channel", G_CALLBACK(webrtc_on_data_channel_cb), NULL);
+    // g_signal_connect(webrtcbin, "on-ice-candidate", G_CALLBACK(webrtc_on_ice_candidate_cb), NULL);
     g_signal_connect(webrtcbin, "on-new-transceiver", G_CALLBACK(on_new_transceiver), NULL);
     g_signal_connect(webrtcbin, "pad-added", G_CALLBACK(on_webrtcbin_pad_added), sc);
     g_signal_connect(webrtcbin, "prepare-data-channel", G_CALLBACK(on_prepare_data_channel), NULL);
 
     gst_bin_add_many(GST_BIN(sc->pipeline), webrtcbin, NULL);
 
-    g_autoptr(GstBus) bus = gst_element_get_bus(sc->pipeline);
-    // We set this up to inject the EGL context
-    gst_bus_set_sync_handler(bus, (GstBusSyncHandler)bus_sync_handler_cb, sc, NULL);
+    {
+        GstBus *bus = gst_element_get_bus(sc->pipeline);
 
-    // This just watches for errors and such
-    gst_bus_add_watch(bus, gst_bus_cb, sc->pipeline);
-    g_object_unref(bus);
+#ifdef ANDROID
+        // We set this up to inject the EGL context
+        gst_bus_set_sync_handler(bus, (GstBusSyncHandler)bus_sync_handler_cb, sc, NULL);
+#endif
+
+        // This just watches for errors and such
+        gst_bus_add_watch(bus, gst_bus_cb, sc->pipeline);
+
+        g_object_unref(bus);
+    }
 
     // This actually hands over the pipeline. Once our own handler returns,
     // the pipeline will be started by the connection.
@@ -839,9 +942,12 @@ void em_stream_client_stop(EmStreamClient *sc) {
     }
     gst_clear_object(&sc->pipeline);
     gst_clear_object(&sc->appsink);
+#ifdef ANDROID
     gst_clear_object(&sc->context);
+#endif
 }
 
+#ifdef ANDROID
 struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct timespec *out_decode_end) {
     if (!sc->appsink) {
         // Not setup yet.
@@ -878,12 +984,12 @@ struct em_sample *em_stream_client_try_pull_sample(EmStreamClient *sc, struct ti
     //    ALOGI("%s: frame %d (w) x %d (h)", __FUNCTION__, width, height);
 
     // TODO: Handle resize?
-#if 0
+    #if 0
     if (width != sc->width || height != sc->height) {
         sc->width = width;
         sc->height = height;
     }
-#endif
+    #endif
 
     struct em_sc_sample *ret = calloc(1, sizeof(struct em_sc_sample));
 
@@ -932,6 +1038,7 @@ void em_stream_client_release_sample(EmStreamClient *sc, struct em_sample *ems) 
     gst_sample_unref(impl->sample);
     free(impl);
 }
+#endif
 
 /*
  * Helper functions

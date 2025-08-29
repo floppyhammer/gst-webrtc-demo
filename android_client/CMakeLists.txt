@@ -19,7 +19,7 @@ find_package(EGL REQUIRED)
 find_package(OpenGLES REQUIRED COMPONENTS V3)
 
 # Default to PIC code
-set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 ### Set configuration options for Monado
 

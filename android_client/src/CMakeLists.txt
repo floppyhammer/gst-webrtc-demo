@@ -1,4 +1,6 @@
-add_subdirectory(webrtc)
+add_subdirectory(render)
+
+add_subdirectory(../../src webrtc_demo_common)
 
 # Build native_app_glue as a static lib
 add_library(
@@ -23,7 +25,8 @@ target_include_directories(
 target_link_libraries(
         gst_webrtc_standalone_client
         PRIVATE
-        gst_webrtc_client
+        gst_webrtc_render
+        webrtc_demo_common
         gstreamer_android
         native_app_glue
         Vulkan::Vulkan

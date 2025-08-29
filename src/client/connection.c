@@ -19,7 +19,7 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include "app_log.h"
+#include "../utils/logger.h"
 #include "status.h"
 
 #define GST_USE_UNSTABLE_API
@@ -30,8 +30,9 @@
 #include <libsoup/soup-message.h>
 #include <libsoup/soup-session.h>
 
-#define DEFAULT_WEBSOCKET_URI "ws://10.11.9.210:52356/ws"
+// #define DEFAULT_WEBSOCKET_URI "ws://10.11.8.157:52356/ws"
 // #define DEFAULT_WEBSOCKET_URI "ws://127.0.0.1:52356/ws"
+#define DEFAULT_WEBSOCKET_URI "ws://10.11.9.210:52356/ws"
 
 /*!
  * Data required for the handshake to complete and to maintain the connection.
@@ -61,7 +62,7 @@ enum {
     // signals
     SIGNAL_WEBSOCKET_CONNECTED,
     SIGNAL_WEBSOCKET_FAILED,
-    SIGNAL_CONNECTED,
+    SIGNAL_WEBRTC_CONNECTED,
     SIGNAL_STATUS_CHANGE,
     SIGNAL_ON_NEED_PIPELINE,
     SIGNAL_ON_DROP_PIPELINE,
@@ -238,8 +239,15 @@ static void em_connection_class_init(EmConnectionClass *klass) {
      * EmConnection::connected
      * @object: the #EmConnection
      */
-    signals[SIGNAL_CONNECTED] =
-        g_signal_new("connected", G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL, G_TYPE_NONE, 0);
+    signals[SIGNAL_WEBRTC_CONNECTED] = g_signal_new("webrtc_connected",
+                                                    G_OBJECT_CLASS_TYPE(klass),
+                                                    G_SIGNAL_RUN_LAST,
+                                                    0,
+                                                    NULL,
+                                                    NULL,
+                                                    NULL,
+                                                    G_TYPE_NONE,
+                                                    0);
 
     /**
      * EmConnection::on-need-pipeline
@@ -370,7 +378,7 @@ static void emconn_webrtc_deep_notify_callback(GstObject *self,
                                                EmConnection *emconn) {
     GstWebRTCPeerConnectionState state;
     g_object_get(prop_object, "connection-state", &state, NULL);
-    ALOGV("deep-notify callback says peer connection state is %s - but it lies sometimes",
+    ALOGI("deep-notify callback says peer connection state is %s - but it lies sometimes",
           peer_connection_state_to_string(state));
     //	emconn_update_status_from_peer_connection_state(emconn, state);
 }
@@ -396,7 +404,7 @@ static void emconn_webrtc_on_data_channel_cb(GstElement *webrtcbin,
     emconn->datachannel = GST_WEBRTC_DATA_CHANNEL(data_channel);
 
     emconn_update_status(emconn, EM_STATUS_CONNECTED);
-    g_signal_emit(emconn, signals[SIGNAL_CONNECTED], 0);
+    g_signal_emit(emconn, signals[SIGNAL_WEBRTC_CONNECTED], 0);
 }
 
 void emconn_send_sdp_answer(EmConnection *emconn, const gchar *sdp) {
@@ -404,7 +412,7 @@ void emconn_send_sdp_answer(EmConnection *emconn, const gchar *sdp) {
     JsonNode *root;
     gchar *msg_str;
 
-    ALOGI("Send answer: %s", sdp);
+    // ALOGI("Send SDP answer: %s", sdp);
 
     builder = json_builder_new();
     json_builder_begin_object(builder);
@@ -433,7 +441,7 @@ static void emconn_webrtc_on_ice_candidate_cb(GstElement *webrtcbin,
     JsonNode *root;
     gchar *msg_str;
 
-    ALOGI("Send candidate: line %u: %s", mlineindex, candidate);
+    // ALOGI("Send candidate: line %u: %s", mlineindex, candidate);
 
     builder = json_builder_new();
     json_builder_begin_object(builder);
@@ -452,7 +460,7 @@ static void emconn_webrtc_on_ice_candidate_cb(GstElement *webrtcbin,
     root = json_builder_get_root(builder);
 
     msg_str = json_to_string(root, TRUE);
-    ALOGD("%s: candidate message: %s", __FUNCTION__, msg_str);
+    // ALOGD("%s: candidate message: %s", __FUNCTION__, msg_str);
     soup_websocket_connection_send_text(emconn->ws, msg_str);
     g_clear_pointer(&msg_str, g_free);
 
@@ -488,7 +496,7 @@ static void emconn_webrtc_process_sdp_offer(EmConnection *emconn, const gchar *s
     GstSDPMessage *sdp_msg = NULL;
     GstWebRTCSessionDescription *desc = NULL;
 
-    ALOGI("Received offer: %s\n", sdp);
+    // ALOGI("Received SDP offer: %s\n", sdp);
 
     if (gst_sdp_message_new_from_text(sdp, &sdp_msg) != GST_SDP_OK) {
         g_debug("Error parsing SDP description");
@@ -520,7 +528,7 @@ out:
 }
 
 static void emconn_webrtc_process_candidate(EmConnection *emconn, guint mlineindex, const gchar *candidate) {
-    ALOGI("process_candidate: %d %s", mlineindex, candidate);
+    // ALOGI("process_candidate: %d %s", mlineindex, candidate);
 
     g_signal_emit_by_name(emconn->webrtcbin, "add-ice-candidate", mlineindex, candidate);
 }
@@ -529,7 +537,7 @@ static void emconn_on_ws_message_cb(SoupWebsocketConnection *connection,
                                     gint type,
                                     GBytes *message,
                                     EmConnection *emconn) {
-    ALOGD("%s", __FUNCTION__);
+    // ALOGD("%s", __FUNCTION__);
     gsize length = 0;
     const gchar *msg_data = g_bytes_get_data(message, &length);
     JsonParser *parser = json_parser_new();
@@ -547,7 +555,7 @@ static void emconn_on_ws_message_cb(SoupWebsocketConnection *connection,
         }
 
         msg_type = json_object_get_string_member(msg, "msg");
-        ALOGI("Websocket message received: %s", msg_type);
+        // ALOGI("Websocket message received: %s", msg_type);
 
         if (g_str_equal(msg_type, "offer")) {
             const gchar *offer_sdp = json_object_get_string_member(msg, "sdp");
@@ -664,7 +672,9 @@ static void emconn_connect_internal(EmConnection *emconn, enum status status) {
         emconn->ws_cancel = g_cancellable_new();
     }
     g_cancellable_reset(emconn->ws_cancel);
+
     ALOGI("calling soup_session_websocket_connect_async. websocket_uri = %s", emconn->websocket_uri);
+
 #if SOUP_MAJOR_VERSION == 2
     soup_session_websocket_connect_async(emconn->soup_session,                                     // session
                                          soup_message_new(SOUP_METHOD_GET, emconn->websocket_uri), // message

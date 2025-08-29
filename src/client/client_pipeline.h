@@ -4,7 +4,11 @@
 extern "C" {
 #endif
 
-int create_client(int argc, char *argv[]);
+struct my_client_state;
+
+void client_create(struct my_client_state** out_client_state);
+
+void client_stop(struct my_client_state* client_state);
 
 #ifdef __cplusplus
 }
