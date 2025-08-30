@@ -45,71 +45,6 @@ struct my_sc_sample {
  */
 typedef void *(*os_run_func_t)(void *);
 
-#ifdef __linux__
-/*!
- * All in one helper that handles locking, waiting for change and starting a
- * thread.
- */
-struct os_thread_helper {
-    pthread_t thread;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-
-    bool initialized;
-    bool running;
-};
-
-/*!
- * Start the internal thread.
- *
- * @public @memberof os_thread_helper
- */
-static int os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t func, void *ptr) {
-    pthread_mutex_lock(&oth->mutex);
-
-    g_assert(oth->initialized);
-
-    if (oth->running) {
-        pthread_mutex_unlock(&oth->mutex);
-        return -1;
-    }
-
-    const int ret = pthread_create(&oth->thread, NULL, func, ptr);
-    if (ret != 0) {
-        pthread_mutex_unlock(&oth->mutex);
-        return ret;
-    }
-
-    oth->running = true;
-
-    pthread_mutex_unlock(&oth->mutex);
-
-    return 0;
-}
-
-/*!
- * Initialize the thread helper.
- *
- * @public @memberof os_thread_helper
- */
-static int os_thread_helper_init(struct os_thread_helper *oth) {
-    memset(oth, 0, sizeof(struct os_thread_helper));
-
-    int ret = pthread_mutex_init(&oth->mutex, NULL);
-    if (ret != 0) {
-        return ret;
-    }
-
-    ret = pthread_cond_init(&oth->cond, NULL);
-    if (ret) {
-        pthread_mutex_destroy(&oth->mutex);
-        return ret;
-    }
-    oth->initialized = true;
-
-    return 0;
-}
-#else
 struct os_thread_helper {
     GThread *thread;
     GMutex mutex;
@@ -146,7 +81,7 @@ static int os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t fu
         return -1;
     }
 
-    oth->thread = g_thread_new(NULL, (GThreadFunc)func, ptr);
+    oth->thread = g_thread_new(NULL, func, ptr);
     if (!oth->thread) {
         g_mutex_unlock(&oth->mutex);
         return -1; // -1 for "creation failed"
@@ -158,7 +93,6 @@ static int os_thread_helper_start(struct os_thread_helper *oth, os_run_func_t fu
 
     return 0;
 }
-#endif
 
 struct my_stream_client {
     GMainLoop *loop;
@@ -225,7 +159,7 @@ static void on_need_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc);
 
 static void on_drop_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc);
 
-static void *my_stream_client_thread_func(const void *ptr);
+static void *my_stream_client_thread_func(void *ptr);
 
 /*
  * Helper functions
@@ -918,7 +852,7 @@ static void on_drop_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc) {
     gst_clear_object(&sc->app_sink);
 }
 
-static void *my_stream_client_thread_func(const void *ptr) {
+static void *my_stream_client_thread_func(void *ptr) {
     const MyStreamClient *sc = ptr;
 
     ALOGI("%s: running GMainLoop", __FUNCTION__);
