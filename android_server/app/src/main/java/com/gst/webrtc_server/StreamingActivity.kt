@@ -13,7 +13,6 @@ import android.widget.Toast
 import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat
 
-
 class StreamingActivity : NativeActivity() {
     private lateinit var mediaProjectionManager: MediaProjectionManager
 
@@ -21,6 +20,8 @@ class StreamingActivity : NativeActivity() {
         private const val REQUEST_CODE_MEDIA_PROJECTION = 1001 // Or any other unique integer
         private const val TAG = "StreamingActivity"
     }
+
+    private var isServiceRunning = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         System.loadLibrary("gst_webrtc_server_android")
@@ -77,7 +78,7 @@ class StreamingActivity : NativeActivity() {
             startService(serviceIntent)
             Log.i(TAG, "Called startService for ScreenCaptureService.")
         }
-//        isServiceRunning = true
+        isServiceRunning = true
 
         Log.i(
             TAG,
@@ -91,7 +92,7 @@ class StreamingActivity : NativeActivity() {
             action = ScreenCaptureService.ACTION_STOP
         }
         startService(serviceIntent) // Send stop command
-//        isServiceRunning = false
+        isServiceRunning = false
 
         Log.i(
             TAG,
