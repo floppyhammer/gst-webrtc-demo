@@ -1,6 +1,7 @@
 #include "stream_client.h"
 
 #include <gst/app/gstappsink.h>
+#include <gst/rtp/gstrtpbuffer.h>
 #ifdef ANDROID
     #include <gst/gl/gl.h>
     #include <gst/gl/gstglsyncmeta.h>
@@ -22,6 +23,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "../common/custom_meta.h"
 #include "../common/general.h"
 #include "../utils/logger.h"
 #include "connection.h"
@@ -140,6 +142,10 @@ struct my_stream_client {
 
     guint timeout_src_id_dot_data;
     guint timeout_src_id_print_stats;
+
+    // todo: this may not be an ideal way to handle data racing
+    GMutex metadata_preservation_mutex;
+    GstBuffer *preserved_metadata_struct_buf;
 };
 
 // clang-format off
@@ -340,9 +346,9 @@ static void on_audio_handoff(GstElement *identity, GstBuffer *buffer, gpointer u
     const GstClockTime pts = GST_BUFFER_PTS(buffer);
     const GstClockTime duration = GST_BUFFER_DURATION(buffer);
 
-    g_print("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
-            GST_TIME_ARGS(pts),
-            GST_TIME_ARGS(duration));
+    // g_print("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
+    //         GST_TIME_ARGS(pts),
+    //         GST_TIME_ARGS(duration));
 }
 
 static void handle_media_stream(GstPad *src_pad, MyStreamClient *sc, const char *convert_name, const char *sink_name) {
@@ -645,6 +651,126 @@ static gboolean print_fec_stats(MyStreamClient *sc) {
     return G_SOURCE_CONTINUE;
 }
 
+static GstPadProbeReturn rtpdepay_sink_pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
+    MyStreamClient *sc = user_data;
+
+    int64_t frame_receive_time = g_get_monotonic_time();
+
+    g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&sc->metadata_preservation_mutex);
+
+    // Is not yet consumed.
+    if (sc->preserved_metadata_struct_buf) {
+        return GST_PAD_PROBE_OK;
+    }
+
+    GstBuffer *buffer = gst_pad_probe_info_get_buffer(info);
+
+    GstRTPBuffer rtp_buffer = GST_RTP_BUFFER_INIT;
+
+    // Extract Downstream metadata from rtp header
+    if (!gst_rtp_buffer_map(buffer, GST_MAP_READWRITE, &rtp_buffer)) {
+        ALOGE("Failed to map GstBuffer");
+        return GST_PAD_PROBE_OK;
+    }
+
+    // Not all buffers has extension data attached, check.
+    if (!gst_rtp_buffer_get_extension(&rtp_buffer)) {
+        ALOGE("No extension bit on RTP buffer!");
+        goto no_buf;
+    }
+
+    guint size = 0;
+    gpointer payload_ptr;
+    if (!gst_rtp_buffer_get_extension_twobytes_header(&rtp_buffer,
+                                                      NULL,
+                                                      RTP_TWOBYTES_HDR_EXT_ID,
+                                                      0 /* NOTE: We do not support multi-extension-elements.*/,
+                                                      &payload_ptr,
+                                                      &size)) {
+        ALOGE("Could not retrieve twobyte extension on RTP buffer!");
+        goto no_buf;
+    }
+
+    // Repack the protobuf into a GstBuffer
+    sc->preserved_metadata_struct_buf = gst_buffer_new_memdup(payload_ptr, size);
+    if (!sc->preserved_metadata_struct_buf) {
+        ALOGE("Failed to allocate GstBuffer with payload.");
+        goto no_buf;
+    }
+
+    gst_rtp_buffer_unmap(&rtp_buffer);
+    return GST_PAD_PROBE_OK;
+
+no_buf:
+    gst_rtp_buffer_unmap(&rtp_buffer);
+    return GST_PAD_PROBE_OK;
+}
+
+static GstPadProbeReturn rtpdepay_src_pad_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
+    MyStreamClient *sc = user_data;
+
+    g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&sc->metadata_preservation_mutex);
+
+    if (!sc->preserved_metadata_struct_buf) {
+        ALOGE("preserved_metadata_struct_buf is NULL");
+        return GST_PAD_PROBE_OK;
+    }
+
+    int64_t frame_receive_time = g_get_monotonic_time();
+
+    GstBuffer *buffer = gst_pad_probe_info_get_buffer(info);
+
+    // Add it to a custom meta
+    GstCustomMeta *custom_meta = gst_buffer_add_custom_meta(buffer, "down-message");
+    if (custom_meta == NULL) {
+        ALOGE("Failed to add GstCustomMeta");
+        gst_buffer_unref(sc->preserved_metadata_struct_buf);
+        sc->preserved_metadata_struct_buf = NULL;
+        return GST_PAD_PROBE_OK;
+    }
+
+    GstStructure *custom_structure = gst_custom_meta_get_structure(custom_meta);
+    gst_structure_set(custom_structure, "protobuf", GST_TYPE_BUFFER, sc->preserved_metadata_struct_buf, NULL);
+
+    // Set the frame receive time
+    GValue frame_receive_time_value = G_VALUE_INIT;
+    g_value_init(&frame_receive_time_value, G_TYPE_INT64);
+    g_value_set_int64(&frame_receive_time_value, frame_receive_time);
+    gst_structure_set_value(custom_structure, "frame-receive-time", &frame_receive_time_value);
+
+    gst_buffer_unref(sc->preserved_metadata_struct_buf);
+    sc->preserved_metadata_struct_buf = NULL;
+
+    return GST_PAD_PROBE_OK;
+}
+
+static bool add_rtpdepay_bypass_pad_probes(MyStreamClient *sc) {
+    GstElement *depay = gst_bin_get_by_name(GST_BIN(sc->pipeline), "depay");
+    g_assert(depay);
+
+    GstPad *sink_pad = gst_element_get_static_pad(depay, "sink");
+    if (sink_pad != NULL) {
+        gst_pad_add_probe(sink_pad, GST_PAD_PROBE_TYPE_BUFFER, rtpdepay_sink_pad_probe, sc, NULL);
+        gst_object_unref(sink_pad);
+    } else {
+        ALOGE("Could not find static sink pad in depay!");
+        return false;
+    }
+
+    GstPad *src_pad = gst_element_get_static_pad(depay, "src");
+    if (src_pad != NULL) {
+        gst_pad_add_probe(src_pad, GST_PAD_PROBE_TYPE_BUFFER, rtpdepay_src_pad_probe, sc, NULL);
+        gst_object_unref(src_pad);
+    } else {
+        ALOGE("Could not find static src pad in depay!");
+        return false;
+    }
+
+    gst_object_unref(depay);
+
+    return true;
+}
+
 static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, MyStreamClient *sc) {
     // We don't care about sink pads
     if (GST_PAD_DIRECTION(pad) != GST_PAD_SRC) {
@@ -687,19 +813,28 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, MyStreamC
         // Check webrtcbin output
         // gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)on_buffer_probe_cb, NULL, NULL);
 
+        GstElement *rtp_depay = gst_element_factory_make("rtph264depay", NULL);
+        g_object_set(rtp_depay, "name", "depay", NULL);
+        gst_bin_add(GST_BIN(sc->pipeline), rtp_depay);
+
+        GstPad *sink_pad = gst_element_get_static_pad(rtp_depay, "sink");
+        gst_pad_link(pad, sink_pad);
+        gst_object_unref(sink_pad);
+
         GstElement *decodebin = gst_element_factory_make("decodebin3", NULL);
 
         g_signal_connect(decodebin, "pad-added", G_CALLBACK(on_decodebin_pad_added), sc);
         gst_bin_add(GST_BIN(sc->pipeline), decodebin);
 
+        gst_element_link(rtp_depay, decodebin);
+
         // Print stats repeatedly
         //        sc->timeout_src_id_print_stats = g_timeout_add_seconds(3, G_SOURCE_FUNC(print_stats), sc);
 
-        GstPad *sink_pad = gst_element_get_static_pad(decodebin, "sink");
-        gst_pad_link(pad, sink_pad);
-        gst_object_unref(sink_pad);
-
         gst_element_sync_state_with_parent(decodebin);
+        gst_element_sync_state_with_parent(rtp_depay);
+
+        add_rtpdepay_bypass_pad_probes(sc);
     }
 }
 
@@ -747,6 +882,12 @@ static void on_need_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc) {
     //        ALOGE("Error creating a pipeline from string: %s", error ? error->message : "Unknown");
     //        abort();
     //    }
+
+    const gchar *tags[] = {NULL};
+    const GstMetaInfo *info = gst_meta_register_custom("down-message", tags, NULL, NULL, NULL);
+    if (info == NULL) {
+        ALOGE("Failed to register custom meta 'down-message'.");
+    }
 
     sc->pipeline = gst_pipeline_new("webrtc-recv-pipeline");
 

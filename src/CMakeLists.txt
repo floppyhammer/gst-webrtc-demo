@@ -8,6 +8,7 @@ if (UNIX AND NOT ANDROID)
     pkg_check_modules(GST_SDP REQUIRED gstreamer-sdp-1.0)
     pkg_check_modules(GST_WEBRTC REQUIRED gstreamer-webrtc-1.0)
     pkg_check_modules(GST_APP REQUIRED gstreamer-app-1.0)
+    pkg_check_modules(GST_RTP REQUIRED gstreamer-rtp-1.0)
     pkg_check_modules(GST REQUIRED gstreamer-plugins-base-1.0)
     pkg_check_modules(GST REQUIRED gstreamer-plugins-bad-1.0)
 
@@ -32,6 +33,7 @@ elseif (WIN32)
     set(GST_SDP_LIBRARIES "${GST_LIB_ROOT}\\gstsdp-1.0.lib")
     set(GST_WEBRTC_LIBRARIES "${GST_LIB_ROOT}\\gstwebrtc-1.0.lib")
     set(GST_APP_LIBRARIES "${GST_LIB_ROOT}\\gstapp-1.0.lib")
+    set(GST_RTP_LIBRARIES "${GST_LIB_ROOT}\\gstrtp-1.0.lib")
 
     set(GLIB_INCLUDE_DIRS "${GST_ROOT}\\include\\glib-2.0" "${GST_LIB_ROOT}\\glib-2.0\\include")
     set(GLIB_LIBRARIES "${GST_LIB_ROOT}\\gobject-2.0.lib" "${GST_LIB_ROOT}\\glib-2.0.lib")
@@ -60,7 +62,9 @@ add_library(webrtc_demo_common
         common/general.c
         common/general.h
         common/webrtc_stats.h
-        common/webrtc_stats.c)
+        common/webrtc_stats.c
+        common/custom_meta.c
+        common/custom_meta.h)
 
 target_link_libraries(
         webrtc_demo_common
@@ -69,10 +73,13 @@ target_link_libraries(
         ${GST_SDP_LIBRARIES}
         ${GST_WEBRTC_LIBRARIES}
         ${GST_APP_LIBRARIES}
+        ${GST_RTP_LIBRARIES}
         ${GLIB_LIBRARIES}
         ${LIBSOUP_LIBRARIES}
         ${JSONGLIB_LIBRARIES}
         ${GIO_LIBRARIES}
+        webrtc_proto
+        protobuf-nanopb-static
 )
 
 target_include_directories(

@@ -3,7 +3,9 @@
 #include <gst/app/app.h>
 #include <gst/gst.h>
 #include <gst/gststructure.h>
+#include <gst/rtp/gstrtpbuffer.h>
 
+#include "../common/custom_meta.h"
 #include "../common/general.h"
 #include "../utils/logger.h"
 #include "signaling_server.h"
@@ -32,6 +34,11 @@ struct MyGstData {
 
     guint timeout_src_id_msg;
     guint timeout_src_id_dot_data;
+
+    // todo: this may not be an ideal way to handle data racing
+    GMutex metadata_preservation_mutex;
+    char preserved_metadata[RTP_TWOBYTES_HDR_EXT_MAX_SIZE];
+    guint preserved_metadata_size;
 };
 
 static gboolean gst_bus_cb(GstBus* bus, GstMessage* message, gpointer user_data) {
@@ -495,6 +502,131 @@ static void on_handoff(GstElement* identity, GstBuffer* buffer, gpointer user_da
     // ALOGD("Buffer PTS: %" GST_TIME_FORMAT ", DTS: %" GST_TIME_FORMAT "\n", GST_TIME_ARGS(pts), GST_TIME_ARGS(dts));
 }
 
+static GstPadProbeReturn on_buffer_probe_add_custom_cb(GstPad* pad, const GstPadProbeInfo* info, gpointer user_data) {
+    if ((info->type & GST_PAD_PROBE_TYPE_BUFFER) == 0) {
+        return GST_PAD_PROBE_OK;
+    }
+
+    GstBuffer* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+
+    struct _webrtc_proto_DownFrameData msg = webrtc_proto_DownFrameData_init_default;
+    msg.frame_push_time = g_get_monotonic_time();
+
+    GBytes* down_msg_bytes = encode_down_message(&msg);
+
+    buffer_add_custom_meta(buffer, down_msg_bytes);
+
+    return GST_PAD_PROBE_OK;
+}
+
+GstPadProbeReturn rtppay_sink_pad_probe(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
+    struct MyGstData* egp = user_data;
+
+    GstBuffer* buffer = gst_pad_probe_info_get_buffer(info);
+
+    GstCustomMeta* custom_meta = gst_buffer_get_custom_meta(buffer, "down-message");
+    if (!custom_meta) {
+        ALOGE("Failed to get custom meta from buffer!");
+        return GST_PAD_PROBE_OK;
+    }
+
+    const GstStructure* custom_structure = gst_custom_meta_get_structure(custom_meta);
+
+    GstBuffer* struct_buf;
+    if (!gst_structure_get(custom_structure, "protobuf", GST_TYPE_BUFFER, &struct_buf, NULL)) {
+        ALOGE("Could not read protobuf from struct!");
+        return GST_PAD_PROBE_OK;
+    }
+
+    GstMapInfo map_info;
+    if (!gst_buffer_map(struct_buf, &map_info, GST_MAP_READ)) {
+        ALOGE("Failed to map custom meta buffer!");
+        return GST_PAD_PROBE_OK;
+    }
+
+    g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&egp->metadata_preservation_mutex);
+
+    // Copy struct_buf to egp->preserved_metadata
+    memcpy(egp->preserved_metadata, map_info.data, map_info.size);
+    egp->preserved_metadata_size = map_info.size;
+
+    gst_buffer_unmap(struct_buf, &map_info);
+
+    return GST_PAD_PROBE_OK;
+}
+
+GstPadProbeReturn rtppay_src_pad_probe(GstPad* pad, GstPadProbeInfo* info, gpointer user_data) {
+    struct MyGstData* egp = user_data;
+
+    GstBuffer* buffer = gst_pad_probe_info_get_buffer(info);
+
+    GstRTPBuffer rtp_buffer = GST_RTP_BUFFER_INIT;
+
+    buffer = gst_buffer_make_writable(buffer);
+
+    if (!gst_rtp_buffer_map(buffer, GST_MAP_WRITE, &rtp_buffer)) {
+        ALOGE("Failed to map GstBuffer!");
+        return GST_PAD_PROBE_OK;
+    }
+
+    g_autoptr(GMutexLocker) locker = g_mutex_locker_new(&egp->metadata_preservation_mutex);
+
+    // Copy metadata into RTP header
+    if (!gst_rtp_buffer_add_extension_twobytes_header(&rtp_buffer,
+                                                      0,
+                                                      RTP_TWOBYTES_HDR_EXT_ID,
+                                                      egp->preserved_metadata,
+                                                      egp->preserved_metadata_size)) {
+        ALOGE("Failed to add extension data!");
+        return GST_PAD_PROBE_OK;
+    }
+
+    // The bit should be written by gst_rtp_buffer_add_extension_twobytes_header
+    if (!gst_rtp_buffer_get_extension(&rtp_buffer)) {
+        ALOGE("The RTP extension bit was not set!");
+    }
+
+    gst_rtp_buffer_unmap(&rtp_buffer);
+
+    return GST_PAD_PROBE_OK;
+}
+
+static bool add_payload_pad_probe(struct MyGstData* self) {
+    GstPipeline* pipeline = GST_PIPELINE(self->pipeline);
+
+    GstElement* rtppay = gst_bin_get_by_name(GST_BIN(pipeline), "rtppay");
+    if (rtppay == NULL) {
+        ALOGE("Could not find rtppay element.");
+        return false;
+    }
+
+    {
+        GstPad* pad = gst_element_get_static_pad(rtppay, "sink");
+        if (pad == NULL) {
+            ALOGE("Could not find static sink pad in rtppay.");
+            return false;
+        }
+
+        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, rtppay_sink_pad_probe, self, NULL);
+        gst_object_unref(pad);
+    }
+
+    {
+        GstPad* pad = gst_element_get_static_pad(rtppay, "src");
+        if (pad == NULL) {
+            ALOGE("Could not find static src pad in rtppay.");
+            return false;
+        }
+
+        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, rtppay_src_pad_probe, self, NULL);
+        gst_object_unref(pad);
+    }
+
+    gst_object_unref(rtppay);
+
+    return true;
+}
+
 void server_pipeline_create(struct MyGstData** out_mgd) {
     GError* error = NULL;
 
@@ -530,6 +662,12 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     }
 
     gst_init(NULL, NULL);
+
+    const gchar* tags[] = {NULL};
+    const GstMetaInfo* info = gst_meta_register_custom("down-message", tags, NULL, NULL, NULL);
+    if (info == NULL) {
+        ALOGE("Failed to register custom meta 'down-message'.");
+    }
 
     // Setup pipeline
     // is-live=true is to fix first frame delay
@@ -584,9 +722,19 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     g_assert_no_error(error);
     g_free(pipeline_str);
 
-    GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "rtppay"), "src");
-    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)on_buffer_probe_cb, NULL, NULL);
-    gst_object_unref(pad);
+    {
+        GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "q1"), "src");
+        gst_pad_add_probe(pad,
+                          GST_PAD_PROBE_TYPE_BUFFER,
+                          (GstPadProbeCallback)on_buffer_probe_add_custom_cb,
+                          NULL,
+                          NULL);
+        gst_object_unref(pad);
+    }
+
+    // GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "rtppay"), "src");
+    // gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)on_buffer_probe_cb, NULL, NULL);
+    // gst_object_unref(pad);
 
     GstElement* iden = gst_bin_get_by_name(GST_BIN(pipeline), "identity");
     if (iden) {
@@ -604,6 +752,9 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     g_signal_connect(signaling_server, "candidate", G_CALLBACK(webrtc_candidate_cb), mgd);
 
     mgd->pipeline = pipeline;
+
+    add_payload_pad_probe(mgd);
+
     *out_mgd = mgd;
 }
 
