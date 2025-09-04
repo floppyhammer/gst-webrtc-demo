@@ -78,3 +78,20 @@ gboolean check_pipeline_dot_data(GstElement* pipeline) {
 
     return G_SOURCE_CONTINUE;
 }
+
+void hook_android_log(GstDebugCategory* category,
+                      const GstDebugLevel level,
+                      const gchar* file,
+                      const gchar* function,
+                      gint line,
+                      GObject* object,
+                      GstDebugMessage* message,
+                      gpointer data) {
+    if (level <= gst_debug_category_get_threshold(category)) {
+        if (level == GST_LEVEL_ERROR) {
+            ALOGE("%s, %s: %s", file, function, gst_debug_message_get(message));
+        } else {
+            ALOGD("%s, %s: %s", file, function, gst_debug_message_get(message));
+        }
+    }
+}

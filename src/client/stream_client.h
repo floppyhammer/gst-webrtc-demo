@@ -18,7 +18,7 @@ typedef struct my_stream_client MyStreamClient;
 MyStreamClient *my_stream_client_new();
 
 #ifdef ANDROID
-#include <EGL/egl.h>
+    #include <EGL/egl.h>
 /// Initialize the EGL context and surface.
 void my_stream_client_set_egl_context(MyStreamClient *sc, EGLContext context, EGLDisplay display, EGLSurface surface);
 #endif
@@ -58,5 +58,5 @@ struct my_sample *my_stream_client_try_pull_sample(MyStreamClient *sc, struct ti
 void my_stream_client_release_sample(MyStreamClient *sc, struct my_sample *sample);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}
+#endif

@@ -1,11 +1,11 @@
 #include "server_pipeline.h"
 
+#include <gst/app/app.h>
 #include <gst/gst.h>
 #include <gst/gststructure.h>
 
 #include "../common/general.h"
 #include "../utils/logger.h"
-#include "gst/app/app.h"
 #include "signaling_server.h"
 
 #define GST_USE_UNSTABLE_API
@@ -16,8 +16,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define AUDIO_TEE_NAME "audio_tee"
 #define VIDEO_TEE_NAME "video_tee"
+#define AUDIO_TEE_NAME "audio_tee"
 
 // Note: currently, enabling audio introduces extra latency
 #define ENABLE_AUDIO
@@ -487,23 +487,6 @@ void server_pipeline_stop(struct MyGstData* mgd) {
     g_clear_handle_id(&mgd->timeout_src_id_dot_data, g_source_remove);
 }
 
-void gstAndroidLog(GstDebugCategory* category,
-                   const GstDebugLevel level,
-                   const gchar* file,
-                   const gchar* function,
-                   gint line,
-                   GObject* object,
-                   GstDebugMessage* message,
-                   gpointer data) {
-    if (level <= gst_debug_category_get_threshold(category)) {
-        if (level == GST_LEVEL_ERROR) {
-            ALOGE("%s, %s: %s", file, function, gst_debug_message_get(message));
-        } else {
-            ALOGD("%s, %s: %s", file, function, gst_debug_message_get(message));
-        }
-    }
-}
-
 #define U_TYPED_CALLOC(TYPE) ((TYPE*)calloc(1, sizeof(TYPE)))
 
 static void on_handoff(GstElement* identity, GstBuffer* buffer, gpointer user_data) {
@@ -535,7 +518,7 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     // Set up gst logger
     {
 #ifdef __ANDROID__
-        gst_debug_add_log_function(&gstAndroidLog, NULL, NULL);
+        gst_debug_add_log_function(&hook_android_log, NULL, NULL);
 #endif
 
         gst_debug_set_default_threshold(GST_LEVEL_WARNING);
@@ -552,13 +535,13 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
 #ifndef ANDROID
-        "filesrc location=test.mp4 ! "
+        "filesrc location=11.mp4 ! "
         "decodebin3 name=dec "
         "dec. ! "
         "queue ! "
 #else
-        // "openslessrc ! "
-        // "audiotestsrc is-live=true wave=red-noise ! "
+        // "openslessrc ! " // Mic
+        // "audiotestsrc is-live=true wave=red-noise ! " // Test audio
         "appsrc name=audiosrc format=GST_FORMAT_TIME is-live=true ! "
         "audio/x-raw,format=S16LE,layout=interleaved,rate=44100,channels=2 ! "
 #endif
@@ -586,7 +569,7 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
 #endif
         "encodebin2 "
         "profile=\"video/x-h264|element-properties,tune=4,speed-preset=1,bframes=0,key-int-max=120,bitrate=16000\" ! "
-        "rtph264pay name=pay config-interval=-1 aggregate-mode=zero-latency ! "
+        "rtph264pay name=rtppay config-interval=-1 aggregate-mode=zero-latency ! "
         "application/x-rtp,payload=96,ssrc=(uint)3484078952 ! "
         "tee name=%s allow-not-linked=true",
         AUDIO_TEE_NAME,
@@ -601,7 +584,7 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     g_assert_no_error(error);
     g_free(pipeline_str);
 
-    GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "pay"), "src");
+    GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "rtppay"), "src");
     gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)on_buffer_probe_cb, NULL, NULL);
     gst_object_unref(pad);
 
@@ -624,7 +607,7 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     *out_mgd = mgd;
 }
 
-void server_pipeline_push_pcm(struct MyGstData* mgd, const void* audio_bytes, int size) {
+void server_pipeline_push_pcm(struct MyGstData* mgd, const void* audio_bytes, const int size) {
     if (!mgd) {
         ALOGW("MyGstData is null");
         return;
