@@ -27,8 +27,7 @@ class ScreenCaptureService : Service() {
     private var isRecording = false
     private val recordingExecutor = Executors.newSingleThreadExecutor()
 
-    // Declare your native method (ensure it's loaded if this service runs in a different process,
-    // though for this setup it's likely the same process)
+    // Declare your native method (ensure it's loaded if this service runs in a different process)
     // If your System.loadLibrary is in an Application class or ensure it's loaded before this service needs it.
     private external fun nativeProcessAudio(data: ByteArray, size: Int, timestamp: Long)
 
@@ -51,7 +50,6 @@ class ScreenCaptureService : Service() {
             getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
 
         createNotificationChannel()
-        Log.d(TAG, "Service onCreate")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

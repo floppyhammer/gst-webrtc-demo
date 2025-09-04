@@ -57,8 +57,8 @@ add_library(webrtc_demo_common
         client/client_pipeline.c
         client/connection.c
         client/stream_client.c
-        common/probe.c
-        common/probe.h
+        common/general.c
+        common/general.h
         common/webrtc_stats.h
         common/webrtc_stats.c)
 

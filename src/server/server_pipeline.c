@@ -3,7 +3,7 @@
 #include <gst/gst.h>
 #include <gst/gststructure.h>
 
-#include "../common/probe.h"
+#include "../common/general.h"
 #include "../utils/logger.h"
 #include "gst/app/app.h"
 #include "signaling_server.h"
@@ -613,7 +613,7 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     g_free(pipeline_str);
 
     GstPad* pad = gst_element_get_static_pad(gst_bin_get_by_name(GST_BIN(pipeline), "pay"), "src");
-    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
+    gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)on_buffer_probe_cb, NULL, NULL);
     gst_object_unref(pad);
 
     GstElement* iden = gst_bin_get_by_name(GST_BIN(pipeline), "identity");
