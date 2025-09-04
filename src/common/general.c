@@ -66,3 +66,15 @@ void list_element_properties(GstElement* element) {
 
     g_free(properties); // Free the array of GParamSpec pointers
 }
+
+gboolean check_pipeline_dot_data(GstElement* pipeline) {
+    if (!pipeline) {
+        return G_SOURCE_CONTINUE;
+    }
+
+    gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
+    // Put you breakpoint here.
+    g_free(dot_data);
+
+    return G_SOURCE_CONTINUE;
+}

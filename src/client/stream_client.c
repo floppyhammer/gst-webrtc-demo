@@ -22,6 +22,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "../common/general.h"
 #include "../utils/logger.h"
 #include "connection.h"
 #include "gst_common.h"
@@ -750,17 +751,6 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, MyStreamC
     }
 }
 
-static gboolean check_pipeline_dot_data(MyStreamClient *sc) {
-    if (!sc || !sc->pipeline) {
-        return G_SOURCE_CONTINUE;
-    }
-
-    gchar *dot_data = gst_debug_bin_to_dot_data(GST_BIN(sc->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    g_free(dot_data);
-
-    return G_SOURCE_CONTINUE;
-}
-
 static void on_need_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc) {
     g_info("%s", __FUNCTION__);
     g_assert_nonnull(sc);
@@ -841,7 +831,7 @@ static void on_need_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc) {
     // the pipeline will be started by the connection.
     g_signal_emit_by_name(my_conn, "set-pipeline", GST_PIPELINE(sc->pipeline), NULL);
 
-    sc->timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), sc);
+    sc->timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), sc->pipeline);
 }
 
 static void on_drop_pipeline_cb(MyConnection *my_conn, MyStreamClient *sc) {

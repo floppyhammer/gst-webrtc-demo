@@ -273,17 +273,6 @@ static void data_channel_message_string_cb(GstWebRTCDataChannel* data_channel, g
     ALOGD("Received data channel message (string): %s", str);
 }
 
-static gboolean check_pipeline_dot_data(struct MyGstData* mgd) {
-    if (!mgd || !mgd->pipeline) {
-        return G_SOURCE_CONTINUE;
-    }
-
-    gchar* dot_data = gst_debug_bin_to_dot_data(GST_BIN(mgd->pipeline), GST_DEBUG_GRAPH_SHOW_ALL);
-    g_free(dot_data);
-
-    return G_SOURCE_CONTINUE;
-}
-
 static void webrtc_client_connected_cb(SignalingServer* server, const ClientId client_id, struct MyGstData* mgd) {
     ALOGI("WebSocket client connected, ID: %p", client_id);
 
@@ -335,7 +324,7 @@ static void webrtc_client_connected_cb(SignalingServer* server, const ClientId c
     g_assert(ret != GST_STATE_CHANGE_FAILURE);
 
     // Debug
-    mgd->timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), mgd);
+    mgd->timeout_src_id_dot_data = g_timeout_add_seconds(3, G_SOURCE_FUNC(check_pipeline_dot_data), mgd->pipeline);
 }
 
 static void webrtc_sdp_answer_cb(SignalingServer* server,
