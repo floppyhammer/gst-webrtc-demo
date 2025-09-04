@@ -19,8 +19,20 @@ GstPadProbeReturn on_buffer_probe_cb(GstPad* pad, const GstPadProbeInfo* info, g
 
     if (prev_pts != 0) {
         const int64_t pts_diff = (pts - prev_pts) / 1e6;
-        ALOGD("Buffer probe: PTS: %" GST_TIME_FORMAT ", PTS diff: %ld", GST_TIME_ARGS(pts), pts_diff);
+
+        if (pts_diff < 0) {
+            ALOGE("Buffer probe: PTS: %" GST_TIME_FORMAT ", PTS diff: %ld. Bad packet: decreasing timestamp",
+                  GST_TIME_ARGS(pts),
+                  pts_diff);
+        } else if (pts_diff > 50) {
+            ALOGE("Buffer probe: PTS: %" GST_TIME_FORMAT ", PTS diff: %ld. Bad packet: arrives too late",
+                  GST_TIME_ARGS(pts),
+                  pts_diff);
+        } else {
+            ALOGD("Buffer probe: PTS: %" GST_TIME_FORMAT ", PTS diff: %ld", GST_TIME_ARGS(pts), pts_diff);
+        }
     }
+
     prev_pts = pts;
 
     static uint16_t prev_seq_num = 0;

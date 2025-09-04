@@ -320,61 +320,13 @@ static GstFlowReturn on_new_sample_cb(GstAppSink *appsink, gpointer user_data) {
 }
 #endif
 
-static GstPadProbeReturn buffer_probe_cb(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
-    if (info->type & GST_PAD_PROBE_TYPE_BUFFER) {
-        GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER(info);
-        GstClockTime pts = GST_BUFFER_PTS(buf);
-
-        static GstClockTime newest_pts = 0;
-        static uint32_t seq_num = 0;
-
-        if (newest_pts != 0) {
-            int64_t pts_diff = ((int64_t)pts - (int64_t)newest_pts) / 1e6;
-
-            if (pts_diff < 0) {
-                ALOGE("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT
-                      ", PTS diff: %ld. Bad packet: decreasing timestamp",
-                      GST_TIME_ARGS(pts),
-                      pts_diff);
-            } else if (pts_diff > 50) {
-                ALOGE("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT
-                      ", PTS diff: %ld. Bad packet: arrives too late",
-                      GST_TIME_ARGS(pts),
-                      pts_diff);
-            } else {
-                ALOGD("Webrtcbin video src pad: buffer PTS: %" GST_TIME_FORMAT ", PTS diff: %ld",
-                      GST_TIME_ARGS(pts),
-                      pts_diff);
-            }
-        }
-        newest_pts = newest_pts > pts ? newest_pts : pts;
-
-        GstMapInfo map;
-        if (gst_buffer_map(buf, &map, GST_MAP_READ)) {
-            if (map.size >= 12) {
-                guint8 *data = map.data;
-                uint32_t new_seq_num = (data[2] << 8) | data[3];
-                ALOGD("Webrtcbin video src pad: buffer sequence number: %u\n", new_seq_num);
-
-                if (new_seq_num - seq_num > 1) {
-                    ALOGE("Packet lost!");
-                }
-
-                seq_num = new_seq_num;
-            }
-            gst_buffer_unmap(buf, &map);
-        }
-    }
-    return GST_PAD_PROBE_OK;
-}
-
-static void on_new_transceiver(GstElement *webrtc, GstWebRTCRTPTransceiver *trans) {
+static void on_new_transceiver(GstElement *webrtcbin, GstWebRTCRTPTransceiver *trans) {
     g_object_set(trans, "fec-type", GST_WEBRTC_FEC_TYPE_ULP_RED, NULL);
 }
 
 // This is the gstwebrtc entry point where we create the offer and so on.
 // It will be called when the pipeline goes to PLAYING.
-static void on_negotiation_needed(GstElement *element, gpointer user_data) {
+static void on_negotiation_needed(GstElement *webrtcbin, gpointer user_data) {
     // Pass
 }
 
@@ -733,7 +685,7 @@ static void on_webrtcbin_pad_added(GstElement *webrtcbin, GstPad *pad, MyStreamC
         gst_element_sync_state_with_parent(opusdec);
     } else {
         // Check webrtcbin output
-        // gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)buffer_probe_cb, NULL, NULL);
+        // gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)on_buffer_probe_cb, NULL, NULL);
 
         GstElement *decodebin = gst_element_factory_make("decodebin3", NULL);
 
