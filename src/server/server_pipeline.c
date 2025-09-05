@@ -624,20 +624,25 @@ void server_pipeline_push_pcm(struct MyGstData* mgd, const void* audio_bytes, co
         return;
     }
 
+    GstClock* clock = gst_element_get_clock(mgd->pipeline);
+    const GstClockTime current_time = gst_clock_get_time(clock);
+    const GstClockTime base_time = gst_element_get_base_time(mgd->pipeline);
+    const GstClockTime running_time = current_time - base_time;
+
+    if (base_time == 0) {
+        ALOGE("Pipeline clock has not been started yet, skipping audio push");
+        return;
+    }
+
     GstBuffer* buffer = gst_buffer_new_allocate(NULL, size, NULL);
     if (buffer) {
         gst_buffer_fill(buffer, 0, audio_bytes, size);
-
-        // Set presentation timestamp (PTS) and duration if known/needed
-        GstClock* clock = gst_element_get_clock(mgd->pipeline);
-        const GstClockTime current_time = gst_clock_get_time(clock);
-        const GstClockTime base_time = gst_element_get_base_time(mgd->pipeline);
-        const GstClockTime running_time = current_time - base_time;
 
         // For 16-bit stereo at 44.1kHz
         const int channels = 2;
         const GstClockTime duration = gst_util_uint64_scale_int(size / (2 * channels), GST_SECOND, 44100);
 
+        // Set presentation timestamp (PTS) and duration if known/needed
         // Ensure timestamp units match GStreamer expectations
         GST_BUFFER_PTS(buffer) = running_time;
         GST_BUFFER_DURATION(buffer) = duration;
