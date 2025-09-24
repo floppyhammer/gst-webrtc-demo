@@ -19,9 +19,6 @@
 #define VIDEO_TEE_NAME "video_tee"
 #define AUDIO_TEE_NAME "audio_tee"
 
-// Note: currently, enabling audio introduces extra latency
-#define ENABLE_AUDIO
-
 static SignalingServer* signaling_server = NULL;
 
 struct MyGstData {
@@ -35,7 +32,7 @@ struct MyGstData {
 };
 
 static gboolean gst_bus_cb(GstBus* bus, GstMessage* message, gpointer user_data) {
-    struct MyGstData* mgd = user_data;
+    const struct MyGstData* mgd = user_data;
     GstBin* pipeline = GST_BIN(mgd->pipeline);
 
     switch (GST_MESSAGE_TYPE(message)) {
@@ -165,7 +162,6 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
         gst_object_unref(tee);
     }
 
-#ifdef ENABLE_AUDIO
     {
         GstElement* tee = gst_bin_get_by_name(GST_BIN(pipeline), AUDIO_TEE_NAME);
         GstPad* src_pad = gst_element_request_pad_simple(tee, "src_%u");
@@ -185,7 +181,6 @@ static void link_webrtc_to_tee(GstElement* webrtcbin) {
         gst_object_unref(sink_pad);
         gst_object_unref(tee);
     }
-#endif
 
     // Config existing transceivers
     {
@@ -522,11 +517,8 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
 #endif
 
         gst_debug_set_default_threshold(GST_LEVEL_WARNING);
-        // gst_debug_set_threshold_for_name("encodebin2", GST_LEVEL_INFO);
-        // gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_INFO);
-        // gst_debug_set_threshold_for_name("fec", GST_LEVEL_INFO);
-        //        gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_MEMDUMP);
-        //        gst_debug_set_threshold_for_name("webrtcbindatachannel", GST_LEVEL_TRACE);
+        // gst_debug_set_threshold_for_name("encodebin2", GST_LEVEL_LOG);
+        // gst_debug_set_threshold_for_name("webrtcbin", GST_LEVEL_LOG);
     }
 
     gst_init(NULL, NULL);
@@ -535,7 +527,7 @@ void server_pipeline_create(struct MyGstData** out_mgd) {
     // is-live=true is to fix first frame delay
     gchar* pipeline_str = g_strdup_printf(
 #ifndef ANDROID
-        "filesrc location=11.mp4 ! "
+        "filesrc location=test.mp4 ! "
         "decodebin3 name=dec "
         "dec. ! "
         "queue ! "
@@ -642,8 +634,8 @@ void server_pipeline_push_pcm(struct MyGstData* mgd, const void* audio_bytes, co
         const int channels = 2;
         const GstClockTime duration = gst_util_uint64_scale_int(size / (2 * channels), GST_SECOND, 44100);
 
-        // Set presentation timestamp (PTS) and duration if known/needed
-        // Ensure timestamp units match GStreamer expectations
+        // Set presentation timestamp (PTS) and duration if known/needed.
+        // Ensure timestamp units match GStreamer expectations.
         GST_BUFFER_PTS(buffer) = running_time;
         GST_BUFFER_DURATION(buffer) = duration;
 

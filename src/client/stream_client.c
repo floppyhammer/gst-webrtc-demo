@@ -340,9 +340,9 @@ static void on_audio_handoff(GstElement *identity, GstBuffer *buffer, gpointer u
     const GstClockTime pts = GST_BUFFER_PTS(buffer);
     const GstClockTime duration = GST_BUFFER_DURATION(buffer);
 
-    g_print("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
-            GST_TIME_ARGS(pts),
-            GST_TIME_ARGS(duration));
+    // g_print("Audio buffer PTS: %" GST_TIME_FORMAT ", duration: %" GST_TIME_FORMAT "\n",
+    //         GST_TIME_ARGS(pts),
+    //         GST_TIME_ARGS(duration));
 }
 
 static void handle_media_stream(GstPad *src_pad, MyStreamClient *sc, const char *convert_name, const char *sink_name) {
